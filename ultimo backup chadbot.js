@@ -12645,14 +12645,13 @@ function getStartingLineups() {
 }
 
 function handleLineupChangeTeamChange(changedPlayer) {
-    if (gameState != State.STOP) {
+    if (playSituation != Situation.STOP) {
         var playerLineup;
         if (changedPlayer.team == Team.RED) {
             // player gets in red team
             var redLineupAuth = game.playerComp[0].map((p) => p.auth);
             var ind = redLineupAuth.findIndex((auth) => auth == authArray[changedPlayer.id][0]);
             if (ind != -1) {
-                // Player goes back in
                 playerLineup = game.playerComp[0][ind];
                 if (playerLineup.timeExit.includes(game.scores.time)) {
                     // gets subbed off then in at the exact same time -> no sub
@@ -12674,7 +12673,6 @@ function handleLineupChangeTeamChange(changedPlayer) {
             var blueLineupAuth = game.playerComp[1].map((p) => p.auth);
             var ind = blueLineupAuth.findIndex((auth) => auth == authArray[changedPlayer.id][0]);
             if (ind != -1) {
-                // Player goes back in
                 playerLineup = game.playerComp[1][ind];
                 if (playerLineup.timeExit.includes(game.scores.time)) {
                     // gets subbed off then in at the exact same time -> no sub
@@ -12692,35 +12690,47 @@ function handleLineupChangeTeamChange(changedPlayer) {
                 game.playerComp[1].push(playerLineup);
             }
         }
-        if (teamRed.some((r) => r.id == changedPlayer.id)) {
+        
+        // Obtener listas actualizadas de jugadores por equipo
+        const currentRedPlayers = room.getPlayerList().filter(p => p.team === Team.RED);
+        const currentBluePlayers = room.getPlayerList().filter(p => p.team === Team.BLUE);
+        
+        // Verificar si el jugador ha dejado el equipo rojo
+        if (!currentRedPlayers.some(r => r.id === changedPlayer.id) && game.playerComp[0]) {
             // player leaves red team
             var redLineupAuth = game.playerComp[0].map((p) => p.auth);
             var ind = redLineupAuth.findIndex((auth) => auth == authArray[changedPlayer.id][0]);
-            playerLineup = game.playerComp[0][ind];
-            if (playerLineup.timeEntry.includes(game.scores.time)) {
-                // gets subbed off then in at the exact same time -> no sub
-                if (game.scores.time == 0) {
-                    game.playerComp[0].splice(ind, 1);
+            if (ind !== -1) {
+                playerLineup = game.playerComp[0][ind];
+                if (playerLineup.timeEntry.includes(game.scores.time)) {
+                    // gets subbed off then in at the exact same time -> no sub
+                    if (game.scores.time == 0) {
+                        game.playerComp[0].splice(ind, 1);
+                    } else {
+                        playerLineup.timeEntry = playerLineup.timeEntry.filter((t) => t != game.scores.time);
+                    }
                 } else {
-                    playerLineup.timeEntry = playerLineup.timeEntry.filter((t) => t != game.scores.time);
+                    playerLineup.timeExit.push(game.scores.time);
                 }
-            } else {
-                playerLineup.timeExit.push(game.scores.time);
             }
-        } else if (teamBlue.some((r) => r.id == changedPlayer.id)) {
+        } 
+        // Verificar si el jugador ha dejado el equipo azul
+        else if (!currentBluePlayers.some(r => r.id === changedPlayer.id) && game.playerComp[1]) {
             // player leaves blue team
             var blueLineupAuth = game.playerComp[1].map((p) => p.auth);
             var ind = blueLineupAuth.findIndex((auth) => auth == authArray[changedPlayer.id][0]);
-            playerLineup = game.playerComp[1][ind];
-            if (playerLineup.timeEntry.includes(game.scores.time)) {
-                // gets subbed off then in at the exact same time -> no sub
-                if (game.scores.time == 0) {
-                    game.playerComp[1].splice(ind, 1);
+            if (ind !== -1) {
+                playerLineup = game.playerComp[1][ind];
+                if (playerLineup.timeEntry.includes(game.scores.time)) {
+                    // gets subbed off then in at the exact same time -> no sub
+                    if (game.scores.time == 0) {
+                        game.playerComp[1].splice(ind, 1);
+                    } else {
+                        playerLineup.timeEntry = playerLineup.timeEntry.filter((t) => t != game.scores.time);
+                    }
                 } else {
-                    playerLineup.timeEntry = playerLineup.timeEntry.filter((t) => t != game.scores.time);
+                    playerLineup.timeExit.push(game.scores.time);
                 }
-            } else {
-                playerLineup.timeExit.push(game.scores.time);
             }
         }
     }
@@ -14541,10 +14551,10 @@ function updateMapBasedOnPlayerCount() {
             room.setCustomStadium(classicMap);
             currentStadium = 'classic';
         }
-    } else if (playerCount >= 5) {
+    } else if (playerCount >= 6) {
         if (currentStadium !== 'big') {
             room.sendAnnouncement(
-                "🏟️ Cambiando a mapa grande para 5+ jugadores.",
+                "🏟️ Cambiando a mapa grande para 6+ jugadores.",
                 null,
                 infoColor,
                 'bold',
