@@ -2,7 +2,7 @@
 
 /* ROOM */
 
-const roomName = '🐐 𝐆𝐎𝐀𝐓 𝐋𝐄𝐕𝐄𝐋 🐐 BIG X3';
+const roomName = 'XD';
 const maxPlayers = 16;
 const roomPublic = true;
 const token = ""; // Insert token here
@@ -20,7 +20,7 @@ var gameConfig = {
     maxPlayers: maxPlayers,
     public: roomPublic,
     noPlayer: true,
-	password: null,
+	password: "1",
     geo: geo
 }
 
@@ -112,8 +112,8 @@ var drawTimeLimit = Infinity;
 var teamSize = 3;
 var maxAdmins = 0;
 var disableBans = false;
-var debugMode = true;
-var afkLimit = debugMode ? Infinity : 12;
+var debugMode = false;
+var afkLimit = debugMode ? Infinity : 15;
 
 var defaultSlowMode = 0.5;
 var chooseModeSlowMode = 1;
@@ -11893,7 +11893,7 @@ function deactivateChooseMode() {
     if (slowMode != defaultSlowMode) {
         slowMode = defaultSlowMode;
         room.sendAnnouncement(
-            `🐢 **Modo lento cambiado a modo de elección** | Duración: **${defaultSlowMode}s**`,
+            `🐢 **Modo lento regresado a normal** | Duración: **${defaultSlowMode}s**`,
             null,
             announcementColor,
             'bold',
@@ -11903,23 +11903,57 @@ function deactivateChooseMode() {
     redCaptainChoice = '';
     blueCaptainChoice = '';
 }
-
 function getSpecList(player) {
     if (player == null) return null;
-    var cstm = 'Players : ';
-    for (let i = 0; i < teamSpec.length; i++) {
-        cstm += teamSpec[i].name + `[${i + 1}], `;
-    }
-    cstm = cstm.substring(0, cstm.length - 2) + '.';
+    
+    // Crear cabecera con estilo
     room.sendAnnouncement(
-        cstm,
+        "━━━━━━━ 📋 JUGADORES DISPONIBLES ━━━━━━━",
         player.id,
-        infoColor,
+        0xFFD700, // Color dorado
+        'bold',
+        HaxNotification.CHAT
+    );
+    
+    // Mostrar cada jugador con su número
+    if (teamSpec.length === 0) {
+        room.sendAnnouncement(
+            "¡No hay jugadores disponibles para elegir!",
+            player.id,
+            0xFF4500, // Naranja-rojizo
+            'bold',
+            HaxNotification.CHAT
+        );
+    } else {
+        for (let i = 0; i < teamSpec.length; i++) {
+            room.sendAnnouncement(
+                `${i + 1}. ${teamSpec[i].name}`,
+                player.id,
+                0xFFFFFF, // Blanco
+                'normal',
+                HaxNotification.CHAT
+            );
+        }
+    }
+    
+    // Mostrar instrucciones
+    room.sendAnnouncement(
+        "Escribe el número del jugador, o 'top', 'random', 'bottom'",
+        player.id,
+        0x00BFFF, // Celeste
+        'bold',
+        HaxNotification.CHAT
+    );
+    
+    // Línea de cierre
+    room.sendAnnouncement(
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        player.id,
+        0xFFD700, // Color dorado
         'bold',
         HaxNotification.CHAT
     );
 }
-
 function choosePlayer() {
     clearTimeout(timeOutCap);
     let captain;
@@ -11929,7 +11963,7 @@ function choosePlayer() {
         captain = teamBlue[0];
     }
     if (captain != null) {
-        room.sendAnnouncement(
+    room.sendAnnouncement(
             "Para elegir un jugador, ingrese su número en la lista dada o use 'top', 'random' o 'bottom'.",
             captain.id,
             infoColor,
@@ -11940,7 +11974,7 @@ function choosePlayer() {
             (player) => {
                 room.sendAnnouncement(
                     `Hurry up ${player.name}, only ${Number.parseInt(String(chooseTime / 2))} seconds left to choose !`,
-                    player.id,
+        player.id,
                     warningColor,
                     'bold',
                     HaxNotification.MENTION
@@ -11978,9 +12012,9 @@ function chooseModeFunction(player, message) {
                     `${player.name} chose Top !`,
                     null,
                     announcementColor,
-                    'bold',
-                    HaxNotification.CHAT
-                );
+        'bold',
+        HaxNotification.CHAT
+    );
             } else if (['random', 'rand'].includes(msgArray[0].toLowerCase())) {
                 var r = getRandomInt(teamSpec.length);
                 room.setPlayerTeam(teamSpec[r].id, Team.RED);
@@ -12581,9 +12615,9 @@ function handleActivityPlayer(player) {
     if (pComp != null) {
         pComp.inactivityTicks++;
         if (pComp.inactivityTicks == 60 * ((2 / 3) * afkLimit)) {
-            room.sendAnnouncement(
+        room.sendAnnouncement(
                 `⛔ ${player.name}, Si no te mueves o escribes en ${Math.floor(afkLimit / 3)} segundos, serás kickeado!`,
-                player.id,
+            player.id,
                 warningColor,
                 'bold',
                 HaxNotification.MENTION
@@ -12645,13 +12679,14 @@ function getStartingLineups() {
 }
 
 function handleLineupChangeTeamChange(changedPlayer) {
-    if (playSituation != Situation.STOP) {
+    if (gameState != State.STOP) {
         var playerLineup;
         if (changedPlayer.team == Team.RED) {
             // player gets in red team
             var redLineupAuth = game.playerComp[0].map((p) => p.auth);
             var ind = redLineupAuth.findIndex((auth) => auth == authArray[changedPlayer.id][0]);
             if (ind != -1) {
+                // Player goes back in
                 playerLineup = game.playerComp[0][ind];
                 if (playerLineup.timeExit.includes(game.scores.time)) {
                     // gets subbed off then in at the exact same time -> no sub
@@ -12673,6 +12708,7 @@ function handleLineupChangeTeamChange(changedPlayer) {
             var blueLineupAuth = game.playerComp[1].map((p) => p.auth);
             var ind = blueLineupAuth.findIndex((auth) => auth == authArray[changedPlayer.id][0]);
             if (ind != -1) {
+                // Player goes back in
                 playerLineup = game.playerComp[1][ind];
                 if (playerLineup.timeExit.includes(game.scores.time)) {
                     // gets subbed off then in at the exact same time -> no sub
@@ -12690,47 +12726,35 @@ function handleLineupChangeTeamChange(changedPlayer) {
                 game.playerComp[1].push(playerLineup);
             }
         }
-        
-        // Obtener listas actualizadas de jugadores por equipo
-        const currentRedPlayers = room.getPlayerList().filter(p => p.team === Team.RED);
-        const currentBluePlayers = room.getPlayerList().filter(p => p.team === Team.BLUE);
-        
-        // Verificar si el jugador ha dejado el equipo rojo
-        if (!currentRedPlayers.some(r => r.id === changedPlayer.id) && game.playerComp[0]) {
+        if (teamRed.some((r) => r.id == changedPlayer.id)) {
             // player leaves red team
             var redLineupAuth = game.playerComp[0].map((p) => p.auth);
             var ind = redLineupAuth.findIndex((auth) => auth == authArray[changedPlayer.id][0]);
-            if (ind !== -1) {
-                playerLineup = game.playerComp[0][ind];
-                if (playerLineup.timeEntry.includes(game.scores.time)) {
-                    // gets subbed off then in at the exact same time -> no sub
-                    if (game.scores.time == 0) {
-                        game.playerComp[0].splice(ind, 1);
-                    } else {
-                        playerLineup.timeEntry = playerLineup.timeEntry.filter((t) => t != game.scores.time);
-                    }
+            playerLineup = game.playerComp[0][ind];
+            if (playerLineup.timeEntry.includes(game.scores.time)) {
+                // gets subbed off then in at the exact same time -> no sub
+                if (game.scores.time == 0) {
+                    game.playerComp[0].splice(ind, 1);
                 } else {
-                    playerLineup.timeExit.push(game.scores.time);
+                    playerLineup.timeEntry = playerLineup.timeEntry.filter((t) => t != game.scores.time);
                 }
+            } else {
+                playerLineup.timeExit.push(game.scores.time);
             }
-        } 
-        // Verificar si el jugador ha dejado el equipo azul
-        else if (!currentBluePlayers.some(r => r.id === changedPlayer.id) && game.playerComp[1]) {
+        } else if (teamBlue.some((r) => r.id == changedPlayer.id)) {
             // player leaves blue team
             var blueLineupAuth = game.playerComp[1].map((p) => p.auth);
             var ind = blueLineupAuth.findIndex((auth) => auth == authArray[changedPlayer.id][0]);
-            if (ind !== -1) {
-                playerLineup = game.playerComp[1][ind];
-                if (playerLineup.timeEntry.includes(game.scores.time)) {
-                    // gets subbed off then in at the exact same time -> no sub
-                    if (game.scores.time == 0) {
-                        game.playerComp[1].splice(ind, 1);
-                    } else {
-                        playerLineup.timeEntry = playerLineup.timeEntry.filter((t) => t != game.scores.time);
-                    }
+            playerLineup = game.playerComp[1][ind];
+            if (playerLineup.timeEntry.includes(game.scores.time)) {
+                // gets subbed off then in at the exact same time -> no sub
+                if (game.scores.time == 0) {
+                    game.playerComp[1].splice(ind, 1);
                 } else {
-                    playerLineup.timeExit.push(game.scores.time);
+                    playerLineup.timeEntry = playerLineup.timeEntry.filter((t) => t != game.scores.time);
                 }
+            } else {
+                playerLineup.timeExit.push(game.scores.time);
             }
         }
     }
@@ -13371,9 +13395,9 @@ function printRankings(statKey, id = 0) {
                 'Not enough games played yet !',
                 id,
                 errorColor,
-                'bold',
-                HaxNotification.CHAT
-            );
+            'bold',
+            HaxNotification.CHAT
+        );
         }
         return;
     }
@@ -13415,7 +13439,7 @@ function getGametimePlayer(pComp) {
     for (let j = 0; j < pComp.timeEntry.length; j++) {
         if (pComp.timeExit.length < j + 1) {
             timePlayer += game.scores.time - pComp.timeEntry[j];
-        } else {
+    } else {
             timePlayer += pComp.timeExit[j] - pComp.timeEntry[j];
         }
     }
@@ -13709,13 +13733,13 @@ room.onPlayerJoin = function (player) {
             },
         }).then((res) => res);
     }
-    room.sendAnnouncement(
+            room.sendAnnouncement(
         `👋 Welcome ${player.name} !\nEnter "t" before your message to use team chat and "@@" followed by a player name to PM him !`,
-        player.id,
+                player.id,
         welcomeColor,
         'bold',
-        HaxNotification.CHAT
-    );
+                HaxNotification.CHAT
+            );
     updateTeams();
     updateAdmins();
     if (masterList.findIndex((auth) => auth == player.auth) != -1) {
@@ -13751,7 +13775,7 @@ room.onPlayerTeamChange = function (changedPlayer, byPlayer) {
     handleLineupChangeTeamChange(changedPlayer);
     if (AFKSet.has(changedPlayer.id) && changedPlayer.team != Team.SPECTATORS) {
         room.setPlayerTeam(changedPlayer.id, Team.SPECTATORS);
-        room.sendAnnouncement(
+    room.sendAnnouncement(
             `${changedPlayer.name} is AFK !`,
             null,
             errorColor,
@@ -14021,11 +14045,11 @@ if (message.startsWith("ac ")) {
         else
             room.sendAnnouncement(
                 `The command you tried to enter does not exist for you. Please enter '!help' to get the available commands to you.`,
-                player.id,
+        player.id,
                 errorColor,
-                'bold',
-                HaxNotification.CHAT
-            );
+        'bold',
+        HaxNotification.CHAT
+    );
         return false;
     }
     
@@ -14059,7 +14083,80 @@ if (message.startsWith("ac ")) {
         );
         return false;
     }
-    
+      // PARTE 7: MANEJO DE CAMISETAS
+      const formatoCamiseta = /^([a-z]+)([1-3])$/i;
+      const matchCamiseta = message.match(formatoCamiseta);
+      
+      if (matchCamiseta) {
+          const equipo = matchCamiseta[1].toLowerCase(); // riv
+          const numero = matchCamiseta[2]; // 1, 2 o 3
+          
+          // Solo permitir si el jugador está en un equipo
+          if (player.team === Team.SPECTATORS) {
+              room.sendAnnouncement(
+                  "❌ Tenés que estar en un equipo para cambiar la camiseta.",
+                  player.id,
+                  errorColor,
+                  'bold',
+                  HaxNotification.CHAT
+              );
+              return false;
+          }
+          
+          // Mapear números a tipos de camiseta
+          const tipos = {
+              '1': 'titular',
+              '2': 'suplente',
+              '3': 'tercera'
+          };
+          
+          // Construir la clave según el equipo del jugador
+          const teamSuffix = player.team === Team.RED ? "/red" : "/blue";
+          const camisetaId = `${equipo}/${tipos[numero]}${teamSuffix}`;
+          
+          console.log("Intentando aplicar camiseta:", camisetaId);
+          
+          // Intentar asignar la camiseta
+          if (asignarCamisetaPorClave(camisetaId)) {
+              room.sendAnnouncement(
+                  `🎽 ${player.name} cambió la camiseta a ${equipo.toUpperCase()} ${tipos[numero]}`,
+                  null,
+                  0x00CC00,
+                  "bold",
+                  HaxNotification.CHAT
+              );
+          } else {
+              // Si no existe, buscar camisetas disponibles para ese equipo
+              const camisetasDisponibles = Object.keys(camisetasEquipos)
+                  .filter(k => k.startsWith(equipo + "/"))
+                  .map(k => {
+                      const partes = k.split('/');
+                      return partes[1]; // titular, suplente, tercera
+                  })
+                  .filter((v, i, a) => a.indexOf(v) === i); // eliminar duplicados
+              
+              if (camisetasDisponibles.length > 0) {
+                  room.sendAnnouncement(
+                      `❌ Camiseta no encontrada. Opciones para ${equipo}: ${camisetasDisponibles.map((t, i) => `${equipo}${i+1} (${t})`).join(', ')}`,
+                      player.id,
+                      errorColor,
+                      'bold',
+                      HaxNotification.CHAT
+                  );
+              } else {
+                  room.sendAnnouncement(
+                      `❌ No hay camisetas disponibles para ${equipo}`,
+                      player.id,
+                      errorColor,
+                      'bold',
+                      HaxNotification.CHAT
+                  );
+              }
+          }
+          return false;
+      }
+  
+
     // AÑADIR ESTA LLAMADA AL FINAL para formatear mensajes según el rol:
     return formatRoleChatMessage(player, message);
 };
@@ -14519,10 +14616,12 @@ room.onGameTick = function () {
 var autoAssignEnabled = true;
 var winnerStays = true;
 // Función para cambiar el mapa según el número de jugadores
+// Función para cambiar el mapa según el número de jugadores
 function updateMapBasedOnPlayerCount() {
     if (!autoAssignEnabled) return;
     
     let playerCount = players.length;
+    console.log(`Actualizando mapa basado en cantidad de jugadores: ${playerCount}, mapa actual: ${currentStadium}`);
     
     // Lógica para seleccionar el mapa apropiado
     if (playerCount === 1) {
@@ -14538,10 +14637,10 @@ function updateMapBasedOnPlayerCount() {
             room.setCustomStadium(trainingMap);
             currentStadium = 'training';
         }
-    } else if (playerCount >= 2 && playerCount <= 4) {
+    } else if (playerCount >= 2 && playerCount <= 5) {
         if (currentStadium !== 'classic') {
             room.sendAnnouncement(
-                "🏟️ Cambiando a mapa clásico para 2-4 jugadores.",
+                "🏟️ Cambiando a mapa clásico para 2-5 jugadores.",
                 null,
                 infoColor,
                 'bold',
@@ -14568,70 +14667,106 @@ function updateMapBasedOnPlayerCount() {
 }
 // Función para manejar el formato "ganador sigue"
 // Función para manejar el formato "ganador sigue"
+// Función para manejar el formato "ganador sigue"
+// Función para manejar el formato "ganador sigue"
 function handleWinnerStaysFormat() {
     if (!winnerStays || lastWinner === Team.SPECTATORS) return;
     
-    // Si el equipo rojo pierde, el equipo azul pasa al lado rojo
-    if (lastWinner === Team.BLUE) {
-        room.sendAnnouncement(
-            "🔄 ¡El equipo azul ganó! Pasando al lado rojo.",
-            null,
-            announcementColor,
-            'bold',
-            HaxNotification.CHAT
-        );
-        
-        // Mover el equipo perdedor (rojo) a espectadores
-        for (let player of teamRed) {
-            room.setPlayerTeam(player.id, Team.SPECTATORS);
+    // Verificar si es un partido 3v3 (o con equipos grandes)
+    const is3v3Match = teamRed.length >= 3 && teamBlue.length >= 3;
+    
+    // Para partidos 3v3: el ganador pasa al lado AZUL
+    if (is3v3Match) {
+        // Si el equipo rojo gana, pasa al lado azul
+        if (lastWinner === Team.RED) {
+            room.sendAnnouncement(
+                "🔄 ¡El equipo rojo ganó! Pasando al lado azul.",
+                null,
+                announcementColor,
+                'bold',
+                HaxNotification.CHAT
+            );
+            
+            // Mover el equipo perdedor (azul) a espectadores
+            for (let player of teamBlue) {
+                room.setPlayerTeam(player.id, Team.SPECTATORS);
+            }
+            
+            // Mover el equipo ganador (rojo) al lado azul
+            for (let player of teamRed) {
+                room.setPlayerTeam(player.id, Team.BLUE);
+            }
         }
-        
-        // Mover el equipo ganador (azul) al lado rojo
-        for (let player of teamBlue) {
-            room.setPlayerTeam(player.id, Team.RED);
+        // Si el equipo azul gana, se mantiene en su posición
+        else if (lastWinner === Team.BLUE) {
+            room.sendAnnouncement(
+                "🔄 ¡El equipo azul ganó y mantiene su posición!",
+                null,
+                announcementColor,
+                'bold',
+                HaxNotification.CHAT
+            );
+            
+            // Mover el equipo perdedor (rojo) a espectadores
+            for (let player of teamRed) {
+                room.setPlayerTeam(player.id, Team.SPECTATORS);
+            }
         }
-        
-        // Verificar cuántos jugadores necesitamos para equilibrar los equipos
-        const redCount = room.getPlayerList().filter(p => p.team === Team.RED).length;
-        
-        // Solo seleccionar jugadores si hay espectadores disponibles y necesitamos equilibrar
-        if (redCount > 0) {
-            // Seleccionar exactamente la misma cantidad de jugadores para el equipo azul
-            setTimeout(() => {
-                const availableSpecs = teamSpec.filter(p => !AFKSet.has(p.id));
-                
-                if (availableSpecs.length > 0) {
-                    // Asegurarnos de no elegir más jugadores de los necesarios
-                    const playersNeeded = Math.min(redCount, availableSpecs.length);
-                    
-                    if (playersNeeded > 0) {
-                        room.sendAnnouncement(
-                            `🔵 Seleccionando ${playersNeeded} jugador(es) para equilibrar los equipos...`,
-                            null,
-                            blueColor,
-                            'bold',
-                            HaxNotification.CHAT
-                        );
-                        
-                        let jugadoresElegidos = [];
-                        
-                        for (let i = 0; i < playersNeeded; i++) {
-                            room.setPlayerTeam(availableSpecs[i].id, Team.BLUE);
-                            jugadoresElegidos.push(availableSpecs[i].name);
-                        }
-                        
-                        room.sendAnnouncement(
-                            `✅ Jugadores elegidos para el equipo azul: ${jugadoresElegidos.join(", ")}`,
-                            null,
-                            successColor,
-                            'bold',
-                            HaxNotification.CHAT
-                        );
-                    }
-                }
-            }, 1000); // Pequeño retraso para asegurarnos de que los equipos se actualicen correctamente
+    } 
+    // Para otros partidos: comportamiento original (ganador al lado ROJO)
+    else {
+        // Si el equipo rojo gana, se mantiene en su posición
+        if (lastWinner === Team.RED) {
+            room.sendAnnouncement(
+                "🔄 ¡El equipo rojo ganó y mantiene su posición!",
+                null,
+                announcementColor,
+                'bold',
+                HaxNotification.CHAT
+            );
+            
+            // Mover el equipo perdedor (azul) a espectadores
+            for (let player of teamBlue) {
+                room.setPlayerTeam(player.id, Team.SPECTATORS);
+            }
+        }
+        // Si el equipo azul gana, pasa al lado rojo
+        else if (lastWinner === Team.BLUE) {
+            room.sendAnnouncement(
+                "🔄 ¡El equipo azul ganó! Pasando al lado rojo.",
+                null,
+                announcementColor,
+                'bold',
+                HaxNotification.CHAT
+            );
+            
+            // Mover el equipo perdedor (rojo) a espectadores
+            for (let player of teamRed) {
+                room.setPlayerTeam(player.id, Team.SPECTATORS);
+            }
+            
+            // Mover el equipo ganador (azul) al lado rojo
+            for (let player of teamBlue) {
+                room.setPlayerTeam(player.id, Team.RED);
+            }
         }
     }
+    
+    // Forzar a mostrar la lista de jugadores
+    setTimeout(() => {
+        if (chooseMode) {
+            let captain = null;
+            if (teamRed.length <= teamBlue.length && teamRed.length != 0) {
+                captain = teamRed[0];
+            } else if (teamBlue.length < teamRed.length && teamBlue.length != 0) {
+                captain = teamBlue[0];
+            }
+            
+            if (captain != null) {
+                getSpecList(captain);
+            }
+        }
+    }, 500); // pequeño retraso para asegurarnos que los equipos están actualizados
 }
 // Funciones auxiliares para los mensajes de gol
 function getRandomGoalEmoji() {
@@ -14984,9 +15119,9 @@ function toggleAutoAssignCommand(player, message) {
     if (getRole(player) < Role.ADMIN_TEMP) {
         room.sendAnnouncement(
             "❌ No tienes permisos para usar este comando.",
-            player.id,
+        player.id,
             errorColor,
-            'bold',
+        'bold',
             HaxNotification.CHAT
         );
         return false;
@@ -15043,20 +15178,21 @@ commands.winnerstays = {
 };
 
 
-
-// Versión original modificada
+// Versión original modificada mejorada
 const originalHandlePlayersJoin = handlePlayersJoin;
 handlePlayersJoin = function() {
+    console.log("⚠️ Función handlePlayersJoin ejecutada");
     originalHandlePlayersJoin();
+    // Forzar actualización del mapa
     updateMapBasedOnPlayerCount();
 };
 
-// Versión original modificada
+// Versión original modificada mejorada
 const originalHandlePlayersStop = handlePlayersStop;
 handlePlayersStop = function(byPlayer) {
+    console.log("⚠️ Función handlePlayersStop ejecutada");
     originalHandlePlayersStop(byPlayer);
     if (byPlayer == null && endGameVariable && autoAssignEnabled) {
         handleWinnerStaysFormat();
     }
 };
-
