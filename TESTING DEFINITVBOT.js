@@ -2,7 +2,7 @@
 
 /* ROOM */
 
-const roomName = 'XD';
+const roomName = '🐐 𝐆𝐎𝐀𝐓 𝐋𝐄𝐕𝐄𝐋  🐐  🔵   BIG X3   🔵';
 const maxPlayers = 16;
 const roomPublic = true;
 const token = ""; // Insert token here
@@ -20,7 +20,7 @@ var gameConfig = {
     maxPlayers: maxPlayers,
     public: roomPublic,
     noPlayer: true,
-	password: "1",
+	password: null,
     geo: geo
 }
 
