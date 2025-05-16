@@ -4,7 +4,7 @@ geo = { code: "ar", lat: -34.6374, lon: -58.4058 };
     const botName = "Judge";
     const maxPlayers = 16; // maximum number of players in the room
     const roomPublic = true; // true = public room | false = players only enter via the room link (it does not appear in the room list)
-
+    const geo = { code: "ar", lat: -34.6374, lon: -58.4058 };
     const room = HBInit({
         roomName: roomName,
         maxPlayers: maxPlayers,
@@ -13,7 +13,7 @@ geo = { code: "ar", lat: -34.6374, lon: -58.4058 };
         noPlayer: true,
         geo
     });
-        geo: { code: "ar", lat: -34.6374, lon: -58.4058 };
+        
 
     const scoreLimitPractice = 3;
     const timeLimitPractice = 3;
