@@ -1274,7 +1274,74 @@ let blueTeamDoneSelecting = false;
 
     /* FUNCTIONS */
 
+function handleReinicioComando(player) {
+    // Si es ADMIN_PERM o superior, reiniciar inmediatamente
+    if (hasPermission(player, Role.ADMIN_PERM)) {
+        room.sendAnnouncement("🔄 El partido se reiniciará ahora.", null, 0x00FF00, "bold", 2);
+        room.stopGame();
+        room.startGame();
+        return true;
+    }
+    
+    // Si es ADMIN_TEMP, solo permitir reinicio cuando el juego está detenido
+    if (hasPermission(player, Role.ADMIN_TEMP) && getRole(player) < Role.ADMIN_PERM) {
+        if (gameState === State.STOP) {
+            room.sendAnnouncement("🔄 El partido se reiniciará ahora.", null, 0x00FF00, "bold", 2);
+            room.stopGame();
+            room.startGame();
+            return true;
+        } else {
+            room.sendAnnouncement("[❌] Solo puedes reiniciar cuando el juego está detenido.", player.id, 0xFF0000, "bold", 2);
+            return true;
+        }
+    }
 
+    // Para jugadores normales, sistema de votación
+    // Si no hay solicitud pendiente, crear una nueva
+    if (!reinicioSolicitado) {
+        reinicioSolicitado = true;
+        jugadorSolicitanteReinicio = player.id;
+        equipoSolicitanteReinicio = player.team;
+        room.sendAnnouncement(`${player.name} ha solicitado reiniciar el partido. Se necesitan dos confirmaciones del equipo contrario escribiendo !rr.`, null, 0xFFFF00, "bold", 2);
+        return true;
+    }
+    
+    // Si ya existe una solicitud, verificar si es del equipo contrario
+    if (player.team !== equipoSolicitanteReinicio && player.team !== Team.SPECTATORS) {
+        // Verificar que no haya confirmado ya
+        if (!confirmacionesReinicio.includes(player.id)) {
+            confirmacionesReinicio.push(player.id);
+            room.sendAnnouncement(`${player.name} ha confirmado el reinicio del partido (${confirmacionesReinicio.length}/2).`, null, 0xFFFF00, "bold", 2);
+            
+            // Si hay suficientes confirmaciones, reiniciar
+            if (confirmacionesReinicio.length >= 2) {
+                room.sendAnnouncement("🔄 El partido se reiniciará ahora.", null, 0x00FF00, "bold", 2);
+                room.stopGame();
+                room.startGame();
+                
+                // Reiniciar variables
+                reinicioSolicitado = false;
+                jugadorSolicitanteReinicio = null;
+                equipoSolicitanteReinicio = null;
+                confirmacionesReinicio = [];
+            }
+        } else {
+            room.sendAnnouncement(`[❌] Ya has confirmado el reinicio del partido.`, player.id, 0xFF0000, "bold", 2);
+        }
+        return true;
+    } else if (player.id === jugadorSolicitanteReinicio) {
+        room.sendAnnouncement(`[❌] Ya has solicitado el reinicio del partido.`, player.id, 0xFF0000, "bold", 2);
+        return true;
+    } else if (player.team === equipoSolicitanteReinicio) {
+        room.sendAnnouncement(`[❌] Solo los jugadores del equipo contrario pueden confirmar el reinicio.`, player.id, 0xFF0000, "bold", 2);
+        return true;
+    } else if (player.team === Team.SPECTATORS) {
+        room.sendAnnouncement(`[❌] Los espectadores no pueden confirmar el reinicio del partido.`, player.id, 0xFF0000, "bold", 2);
+        return true;
+    }
+    
+    return false;
+}
 // Variable global para el temporizador de inicio automático
 
 // Función para configurar inicio automático
