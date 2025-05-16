@@ -34,9 +34,7 @@
     jugadorSolicitanteReinicio = null;
     equipoSolicitanteReinicio = null;
     confirmacionesReinicio = [];
-    clearTimeout(stopTimeout);
-    clearTimeout(unpauseTimeout);
-    
+
 
 // Función auxiliar para verificar permisos
 function hasPermission(player, requiredRole) {
