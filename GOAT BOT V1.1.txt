@@ -29,7 +29,10 @@
     }
 
 
-
+// Función auxiliar para verificar permisos
+function hasPermission(player, requiredRole) {
+    return getRole(player) >= requiredRole;
+}
     function saveUser(player, password) {
         const auth = getAuth(player);
         if (!auth) {
