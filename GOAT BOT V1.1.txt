@@ -13,7 +13,7 @@ geo = { code: "ar", lat: -34.6374, lon: -58.4058 };
         noPlayer: true,
         geo
     });
-        geo: geo
+        geo: { code: "ar", lat: -34.6374, lon: -58.4058 };
 
     const scoreLimitPractice = 3;
     const timeLimitPractice = 3;
