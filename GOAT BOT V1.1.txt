@@ -1,10 +1,10 @@
+geo = { code: "ar", lat: -34.6374, lon: -58.4058 };
 /* ROOM */
     const roomName = "🐐 𝐆𝐎𝐀𝐓 𝐋𝐄𝐕𝐄𝐋  🐐  🔵   BIG X3   🔵";
     const botName = "Judge";
     const maxPlayers = 16; // maximum number of players in the room
     const roomPublic = true; // true = public room | false = players only enter via the room link (it does not appear in the room list)
-   // Usá = en lugar de : para asignar el valor
-    const geo = { code: "ar", lat: -34.6374, lon: -58.4058 };
+
     const room = HBInit({
         roomName: roomName,
         maxPlayers: maxPlayers,
@@ -13,6 +13,7 @@
         noPlayer: true,
         geo
     });
+        geo: { code: "ar", lat: -34.6374, lon: -58.4058 };
 
     const scoreLimitPractice = 3;
     const timeLimitPractice = 3;
@@ -1066,7 +1067,7 @@ var currentMap = null;
     }`
     /* OPÇÕES */
 
-    var afkLimit = 12; // limite de afk (12 segundos)
+    var afkLimit = 3000; // limite de afk (12 segundos)
     var drawTimeLimit = 1; // minutos
     var maxTeamSize = 3; // máximo de jogadores num time, isso funciona para 1 (você pode querer adaptar as coisas para remover algumas estatísticas inúteis em 1v1, como assist ou cs), 2, 3 ou 4
     var slowMode = 0;
@@ -3687,29 +3688,29 @@ function safeSetTeam(player, team) {
             return false;
         },
 
-        'bra': (player) => {
+        'wh': (player) => {
             if (player.team == Team.RED && player.id == TeamR[0].id) {
-                CaptainChoice = "!bra";
-                room.setTeamColors(Team.RED, 0, 0x3347B3, [0x018434, 0xf8de2e, 0xf8de2e]);
+                CaptainChoice = "!wh";
+                room.setTeamColors(Team.RED, 0, 0x000000, [0xffffff]);
                 room.sendAnnouncement(`El capitán del equipo rojo, ${player.name}, eligió el uniforme [Brasil]!`, null, 0x30F55F, "bold");
             }
             else if (player.team == Team.BLUE && player.id == TeamB[0].id) {
-                CaptainChoice = "!bra";
-                room.setTeamColors(Team.BLUE, 0, 0x3347B3, [0x018434, 0xF8DE2E, 0xF8DE2E]);
+                CaptainChoice = "!wh";
+                room.setTeamColors(Team.BLUE, 0, 0x000000, [0xffffff]);
                 room.sendAnnouncement(`El capitán del equipo azul, ${player.name}, eligió el uniforme [Brasil]!`, null, 0x30F55F, "bold");
             }
             return false;
         },
 
-        'ger': (player) => {
+        'bl': (player) => {
             if (player.team == Team.RED && player.id == TeamR[0].id) {
-                CaptainChoice = "!ale";
-                room.setTeamColors(Team.RED, 90, 0xFFFFFF, [0x121003, 0xC70000, 0xF5C600]);
+                CaptainChoice = "!bl";
+                room.setTeamColors(Team.RED, 90, 0xFFFFFF, [0x000000]);
                 room.sendAnnouncement(`El capitán del equipo rojo, ${player.name}, eligió el uniforme [Alemania]!`, null, 0x30F55F, "bold");
             }
             else if (player.team == Team.BLUE && player.id == TeamB[0].id) {
-                CaptainChoice = "!ale";
-                room.setTeamColors(Team.BLUE, 90, 0xFFFFFF, [0x121003, 0xC70000, 0xF5C600]);
+                CaptainChoice = "!bl";
+                room.setTeamColors(Team.BLUE, 90, 0xFFFFFF, [0x000000]);
                 room.sendAnnouncement(`El capitán del equipo azul, ${player.name}, eligió el uniforme [Alemania]!`, null, 0x30F55F, "bold");
             }
             return false;
@@ -3739,7 +3740,7 @@ function safeSetTeam(player, team) {
             
             // Comandos de juego
             room.sendAnnouncement("🎮 COMANDOS DE JUEGO:", player.id, 0x30F55F, "bold");
-            room.sendAnnouncement("!bra - Uniforme Brasil | !ger - Uniforme Alemania | t <mensaje> - Chat de equipo", player.id, 0x30F55F);
+            room.sendAnnouncement("!bl camiseta negra !wh camiseta blanca | t <mensaje> - Chat de equipo", player.id, 0x30F55F);
             
             // Comandos de estadísticas
             room.sendAnnouncement("📊 COMANDOS DE ESTADÍSTICAS:", player.id, 0x30F55F, "bold");
@@ -4690,7 +4691,7 @@ setTimeout(() => {
             
             // Mensajes de uniformes solo si no es modo práctica
             room.sendAnnouncement(centerText("👕 Comandos de uniformes:"), null, 0x2EF55D, "bold");
-            room.sendAnnouncement(centerText("!bra - Uniforme Brasil | !ger - Uniforme Alemania"), null, 0x2EF55D);
+            room.sendAnnouncement(centerText("!bl Camiseta Negra - !wh Camiseta Blanca"), null, 0x2EF55D);
         }
         
         // Mensaje de chat de equipo para todos los modos
