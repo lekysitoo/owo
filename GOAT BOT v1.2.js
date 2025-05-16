@@ -8937,9 +8937,19 @@ function updateRoleOnPlayerOut() {
         
         // Si un equipo quedó vacío, asignar automáticamente un jugador
         if (TeamR.length == 0 || TeamB.length == 0) {
-            TeamR.length == 0
-                ? room.setPlayerTeam(teamS[0].id, Team.RED)
-                : room.setPlayerTeam(teamS[0].id, Team.BLUE);
+            if (teamS && teamS.length > 0) {
+                try {
+                    if (TeamR.length == 0) {
+                        room.setPlayerTeam(teamS[0].id, Team.RED);
+                    } else {
+                        room.setPlayerTeam(teamS[0].id, Team.BLUE);
+                    }
+                } catch (error) {
+                    console.error("Error al asignar jugador:", error);
+                }
+            } else {
+                console.log("No hay jugadores disponibles en teamS para asignar");
+            }
             return;
         }
         
@@ -8952,13 +8962,17 @@ function updateRoleOnPlayerOut() {
             if (TeamR.length > TeamB.length) {
                 for (var i = 0; i < b; i++) {
                     setTimeout(() => {
-                        room.setPlayerTeam(teamS[0].id, Team.BLUE);
+                        if (teamS && teamS.length > 0) {
+                            room.setPlayerTeam(teamS[0].id, Team.BLUE);
+                        }
                     }, 5 * i);
                 }
             } else {
                 for (var i = 0; i < b; i++) {
                     setTimeout(() => {
-                        room.setPlayerTeam(teamS[0].id, Team.RED);
+                        if (teamS && teamS.length > 0) {
+                            room.setPlayerTeam(teamS[0].id, Team.RED);
+                        }
                     }, 5 * i);
                 }
             }
@@ -8969,9 +8983,11 @@ function updateRoleOnPlayerOut() {
         if (streak == 0 && room.getScores() == null) {
             if (Math.abs(TeamR.length - TeamB.length) == 2) {
                 room.sendChat('🤖 Equilibrando equipos... 🤖');
-                TeamR.length > TeamB.length
-                    ? room.setPlayerTeam(TeamR[TeamR.length - 1].id, Team.SPECTATORS)
-                    : room.setPlayerTeam(TeamB[TeamB.length - 1].id, Team.SPECTATORS);
+                if (TeamR.length > TeamB.length && TeamR.length > 0) {
+                    room.setPlayerTeam(TeamR[TeamR.length - 1].id, Team.SPECTATORS);
+                } else if (TeamB.length > 0) {
+                    room.setPlayerTeam(TeamB[TeamB.length - 1].id, Team.SPECTATORS);
+                }
             }
         }
         
