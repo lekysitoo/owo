@@ -12,7 +12,7 @@
         playerName: botName,
         noPlayer: true
     });
-        geo: geo[0]
+        geo: geo
 
     const scoreLimitPractice = 3;
     const timeLimitPractice = 3;
