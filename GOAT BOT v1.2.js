@@ -7476,31 +7476,53 @@ function handleInactivity() {
             if (lastActivity) {
                 const timeInactive = now - lastActivity;
                 
-                // Si ha pasado la mitad del tiempo (10 segundos)
-                if (timeInactive > afkLimit/2 && timeInactive < afkLimit && !getAFK(player)) {
+                // Si ha pasado la mitad del tiempo (10 segundos) y no se ha enviado el aviso
+                if (timeInactive > afkLimit/2 && timeInactive < afkLimit && !getAFK(player) && !player.afkWarningSent) {
                     room.sendAnnouncement(`⚠️ @${player.name} ¡Te quedan ${Math.ceil((afkLimit - timeInactive)/1000)} segundos para moverte o serás marcado como AFK!`, 
-                        null, 0xFF9900, "bold", 0);
+                        player.id, 0xFF9900, "bold", 1); // 1 = sonido
+                    player.afkWarningSent = true; // Marcar que ya se envió el aviso
                 }
                 
                 // Si ha pasado el tiempo límite (20 segundos)
                 if (timeInactive > afkLimit) {
                     if (!getAFK(player)) {
-                        setAFK(player, true);
+                        console.log(`Marcando como AFK a ${player.name}`);
+                        
+                        // 1. Guardar rol original
                         player.originalRole = getRole(player);
+                        console.log(`Rol original guardado: ${player.originalRole}`);
+                        
+                        // 2. Marcar como AFK
+                        setAFK(player, true);
+                        
+                        // 3. Cambiar a espectador
+                        room.setPlayerTeam(player.id, Team.SPECTATORS);
+                        
+                        // 4. Cambiar rol a AFK
                         setPlayerRole(player, Role.AFK);
+                        
+                        // 5. Notificar
                         room.sendChat("💤 " + player.name + " está AFK", null, 0xAAAAAA);
+                        
+                        // 6. Limpiar flag de aviso
+                        player.afkWarningSent = false;
                     }
                 }
             }
         } else {
             // Espectadores: Kick después de 10 minutos
-            if (lastActivity && now - lastActivity > 10 * 60 * 1000) {
+            if (getAFK(player) && lastActivity && now - lastActivity > 10 * 60 * 1000) {
+                // Restaurar rol original antes de kickear
+                if (player.originalRole !== undefined) {
+                    console.log(`Restaurando rol original ${player.originalRole} a ${player.name} antes de kickear`);
+                    setPlayerRole(player, player.originalRole);
+                    player.originalRole = undefined;
+                }
                 room.kickPlayer(player.id, "AFK timeout", false);
             }
         }
     });
 }
-
 
 
 // Llamar a esta función al final de la selección
