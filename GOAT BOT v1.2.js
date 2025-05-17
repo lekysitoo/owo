@@ -7259,7 +7259,12 @@ var messageHistory = [0, 0, 0, 0, 0, 0];
 var messageCounter = 0;
 
 /* GAME */
+// Agregá esta función antes de room.onPlayerJoin
+function getAuth(player) {
+    return player.auth;
+}
 
+// ... luego continúa con el resto del código ...
 
 function handleQuickMessage(player, quickMessageNumber) {
 if (quickMessageNumber === "420") {
@@ -7472,58 +7477,53 @@ function handleInactivity() {
         const lastActivity = getActivity(player);
         
         if (player.team !== Team.SPECTATORS) {
-            // Jugadores en cancha: AFK después de afkLimit (20 segundos)
             if (lastActivity) {
                 const timeInactive = now - lastActivity;
                 
-                // Si ha pasado la mitad del tiempo (10 segundos) y no se ha enviado el aviso
-                if (timeInactive > afkLimit/2 && timeInactive < afkLimit && !getAFK(player) && !player.afkWarningSent) {
-                    room.sendAnnouncement(`⚠️ @${player.name} ¡Te quedan ${Math.ceil((afkLimit - timeInactive)/1000)} segundos para moverte o serás marcado como AFK!`, 
-                        player.id, 0xFF9900, "bold", 1); // 1 = sonido
-                    player.afkWarningSent = true; // Marcar que ya se envió el aviso
+                // Aviso de AFK
+                if (timeInactive > afkLimit/2 && timeInactive < afkLimit && !getAFK(player)) {
+                    const secondsLeft = Math.ceil((afkLimit - timeInactive)/1000);
+                    if (secondsLeft === Math.floor(secondsLeft)) {
+                        // Solo enviar mensaje cada 5 segundos o en los últimos 3
+                        if (secondsLeft % 5 === 0 || secondsLeft <= 3) {
+                            room.sendAnnouncement(`⚠️ @${player.name} Te quedan ${secondsLeft} segundos para moverte o serás designado como AFK`, 
+                                player.id, 0xFF9900, "bold", 1);
+                        }
+                    }
                 }
                 
-                // Si ha pasado el tiempo límite (20 segundos)
+                // Marcar como AFK
                 if (timeInactive > afkLimit) {
                     if (!getAFK(player)) {
                         console.log(`Marcando como AFK a ${player.name}`);
-                        
-                        // 1. Guardar rol original
-                        player.originalRole = getRole(player);
-                        console.log(`Rol original guardado: ${player.originalRole}`);
-                        
-                        // 2. Marcar como AFK
                         setAFK(player, true);
-                        
-                        // 3. Cambiar a espectador
                         room.setPlayerTeam(player.id, Team.SPECTATORS);
+                        room.sendAnnouncement(`💤 ${player.name} ahora está AFK`, null, 0xAAAAAA, "bold", 0);
                         
-                        // 4. Cambiar rol a AFK
-                        setPlayerRole(player, Role.AFK);
-                        
-                        // 5. Notificar
-                        room.sendChat("💤 " + player.name + " está AFK", null, 0xAAAAAA);
-                        
-                        // 6. Limpiar flag de aviso
-                        player.afkWarningSent = false;
+                        // Actualizar equipos y balancear
+                        updateTeams();
+                        if (room.getScores() !== null) {
+                            balanceTeams();
+                        } else {
+                            const totalPlayers = players.length;
+                            if (totalPlayers >= 6) {
+                                loadMap(bigMap, scoreLimitPractice, timeLimitPractice);
+                            } else if (totalPlayers >= 2) {
+                                loadMap(classicMap, scoreLimitPractice, timeLimitPractice);
+                            }
+                            balanceTeams();
+                        }
                     }
                 }
             }
         } else {
-            // Espectadores: Kick después de 10 minutos
+            // Kick para espectadores AFK
             if (getAFK(player) && lastActivity && now - lastActivity > 10 * 60 * 1000) {
-                // Restaurar rol original antes de kickear
-                if (player.originalRole !== undefined) {
-                    console.log(`Restaurando rol original ${player.originalRole} a ${player.name} antes de kickear`);
-                    setPlayerRole(player, player.originalRole);
-                    player.originalRole = undefined;
-                }
                 room.kickPlayer(player.id, "AFK timeout", false);
             }
         }
     });
 }
-
 
 // Llamar a esta función al final de la selección
 // setupAutoStart();
@@ -8708,12 +8708,6 @@ function updateTeams() { // updates the list of players and the list of all team
 }
 
 
-function getAuth(player) {
-    if (!player) return null;
-    
-    const playerData = extendedP.find(p => p && p[eP.ID] === player.id);
-    return playerData ? playerData[eP.AUTH] : null;
-}
 function getAFK(player) {
     try {
         const playerData = extendedP.find(a => a[0] === player.id);
@@ -8732,6 +8726,13 @@ function setAFK(player, value) {
             // Guardar el rol original si es la primera vez que se marca como AFK
             if (value && !player.originalRole) {
                 player.originalRole = getRole(player);
+                console.log(`Guardando rol original ${player.originalRole} para ${player.name}`);
+            }
+            // Si se está quitando el AFK, restaurar el rol original
+            if (!value && player.originalRole !== undefined) {
+                console.log(`Restaurando rol original ${player.originalRole} para ${player.name}`);
+                setPlayerRole(player, player.originalRole);
+                player.originalRole = undefined;
             }
         }
     } catch (error) {
@@ -10515,10 +10516,10 @@ room.onPlayerTeamChange = function(changedPlayer, byPlayer) {
         room.setPlayerTeam(0, Team.SPECTATORS);
         return;
     }
-    
+
     if (getAFK(changedPlayer) && changedPlayer.team != Team.SPECTATORS) {
         room.setPlayerTeam(changedPlayer.id, Team.SPECTATORS);
-        room.sendChat(changedPlayer.name + " it's AFK!");
+        room.sendAnnouncement(`💤 ${changedPlayer.name} está AFK`, null, 0xAAAAAA, "bold", 0);
         return;
     }
     
@@ -10848,28 +10849,61 @@ room.onPlayerChat = function(player, message) {
             const args = message.substring(1).split(" ");
             const command = args.shift().toLowerCase();
             const comando = message.toLowerCase().trim();
-    
-            // Comando !afk
-            if (message.toLowerCase() === "!afk") {
-                if (getAFK(player)) {
-                    setAFK(player, false);
-                    setActivity(player, Date.now());
-                    if (player.originalRole !== undefined) {
-                        setPlayerRole(player, player.originalRole);
-                        player.originalRole = undefined;
-                        room.sendChat("✅ " + player.name + " ya no está AFK", null, 0x00FF00);
-                    }
-                } else {
-                    setAFK(player, true);
-                    setActivity(player, Date.now());
-                    player.originalRole = getRole(player);
-                    console.log("Guardando rol original:", player.originalRole);
-                    setPlayerRole(player, Role.AFK);
-                    room.sendChat("💤 " + player.name + " está AFK", null, 0xAAAAAA);
-                }
-                return false;
+           // Comando !afk (reemplazá todo el bloque existente)
+if (message.toLowerCase() === "!afk") {
+    // Verificamos primero si el jugador está en un equipo (Red o Blue)
+    if (player.team !== 0) {  // 0 es Spectators, 1 es Red, 2 es Blue
+        room.sendAnnouncement("⛔ No podés ponerte AFK si ya estás en un equipo.", player.id, 0xFF0000, "bold", 2);
+        return false;  // Evitar que el mensaje aparezca en el chat
+    }
+
+    if (getAFK(player)) {
+        setAFK(player, false);
+        setActivity(player, Date.now());
+        room.sendAnnouncement(`✅ ${player.name} ya no está AFK`, null, 0x00FF00, "bold", 0);
+        
+        // Verificamos si hay un juego en curso
+        if (gameState !== State.STOP) {
+            // Si hay un juego en curso, verificamos si hay espacio en los equipos
+            updateTeams();
+            balanceTeams();
+        } else {
+            // Si no hay juego en curso, cargamos un mapa según la cantidad de jugadores
+            const players = room.getPlayerList().filter(p => !getAFK(p));
+            if (players.length === 1) {
+                // Si solo hay un jugador, cargamos un mapa de práctica
+                console.log("Cargando mapa de práctica para jugador que vuelve de AFK");
+                loadMap(practiceMap);
+            } else if (players.length >= 2 && players.length <= 5) {
+                // Si hay entre 2 y 5 jugadores, cargamos un mapa clásico
+                console.log("Cargando mapa clásico para jugadores después de AFK");
+                loadMap(classicMap);
+            } else if (players.length >= 6) {
+                // Si hay 6 o más jugadores, cargamos un mapa grande
+                console.log("Cargando mapa grande para jugadores después de AFK");
+                loadMap(bigMap);
             }
-    
+            
+            // Balanceamos equipos si hay suficientes jugadores
+            if (players.length >= 2) {
+                updateTeams();
+                balanceTeams();
+            }
+        }
+        
+        // Si estamos en modo elección, continuamos la selección
+        if (chooseMode) {
+            if (teamS.length >= 2) {
+                choosePlayer();
+            }
+        }
+    } else {
+        setAFK(player, true);
+        setActivity(player, Date.now());
+        room.sendAnnouncement(`💤 ${player.name} ahora está AFK`, null, 0xAAAAAA, "bold", 0);
+    }
+    return false;  // Evitar que el mensaje aparezca en el chat
+}
             // Comandos de selección
             if (message.toLowerCase() === "!cancelseleccion" && getRole(player) >= Role.ADMIN_PERM) {
                 if (inChooseMode) {
