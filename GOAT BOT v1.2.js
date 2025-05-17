@@ -9093,9 +9093,9 @@ if (teamS.length === 0) {
         
         // Verificar mapa adecuado
         if (TeamR.length + TeamB.length <= 4) {
-            loadMap(classicMap, scoreLimitClassic, timeLimitClassic);
+            loadMap(classicMap, scoreLimitPractice, timeLimitPractice);
         } else {
-            loadMap(bigMap, scoreLimitBig, timeLimitBig);
+            loadMap(bigMap, scoreLimitPractice, timeLimitPractice);
         }
         
         // Iniciar partido
