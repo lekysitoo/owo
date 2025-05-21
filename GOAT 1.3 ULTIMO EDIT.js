@@ -15,11 +15,11 @@ const room = HBInit({
 });
 
 
-     const scoreLimitClassic = 1;
-    const scoreLimitBig = 1;
+     const scoreLimitClassic = 3;
+    const scoreLimitBig = 3;
     const timeLimitClassic = 3;
     const timeLimitBig = 3; 
-    const scoreLimitPractice = 1;
+    const scoreLimitPractice = 3;
     const timeLimitPractice = 3;
     const FIREBASE_URL = "https://haxhost-uwu-default-rtdb.firebaseio.com";
     const FIREBASE_API_KEY = "AIzaSyAITBZT1r1tYRNXMxmg4w6ZWkEW-en8TX0";
