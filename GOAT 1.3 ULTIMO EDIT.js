@@ -10952,7 +10952,7 @@ function updateStats() {
             
             // Comandos de juego
             room.sendAnnouncement("🎮 COMANDOS DE JUEGO:", player.id, 0x30F55F, "bold");
-            room.sendAnnouncement("!bra - Uniforme Brasil | !ger - Uniforme Alemania | t <mensaje> - Chat de equipo", player.id, 0x30F55F);
+            room.sendAnnouncement("!camisetas - !rr - 'p' | t <mensaje> - Chat de equipo", player.id, 0x30F55F);
             
             // Comandos de estadísticas
             room.sendAnnouncement("📊 COMANDOS DE ESTADÍSTICAS:", player.id, 0x30F55F, "bold");
