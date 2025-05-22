@@ -11838,14 +11838,58 @@ if (message.length > 1 && message[0].toLowerCase() == 't' && message[1] == ' ') 
         return false;
     }
 
-        // 5. COMANDO DE PAUSA (p)
-        if (message[0].toLowerCase() === "p") {
-            if (pausaActiva) {
-                room.sendAnnouncement(`[❌] Ya hay una pausa activa en este momento.`, player.id, 0xFF0000, "bold", 2);
-                return false;
-            }
-            // ... [resto del código de pausa] ...
+
+    // Comando para solicitar pausa
+    if (message.toLowerCase() === "p") {
+        // Si ya hay una pausa activa, ignorar
+        if (pausaActiva) {
+            room.sendAnnouncement(`[❌] Ya hay una pausa activa en este momento.`, player.id, 0xFF0000, "bold", 2);
+            return false;
         }
+
+        // Si no hay una solicitud de pausa pendiente, crear una nueva
+        if (!pausaSolicitada) {
+            pausaSolicitada = true;
+            jugadorSolicitante = player.id;
+            room.sendAnnouncement(`⏸️ ${player.name} ha solicitado una pausa. Otro jugador debe confirmar escribiendo "p".`, null, 0xFFFF00, "bold", 2);
+            return false;
+        } 
+        // Si hay una solicitud pendiente y este es otro jugador, confirmar la pausa
+        else if (player.id !== jugadorSolicitante) {
+            // Establecer pausa activa para evitar solicitudes múltiples
+            pausaActiva = true;
+            
+            // Enviar mensaje de confirmación
+            room.sendAnnouncement(`✅ ${player.name} ha confirmado la pausa. El juego se detendrá por 20 segundos.`, null, 0x00FF00, "bold", 2);
+            
+            // Pausar el juego
+            room.pauseGame(true);
+            
+            // Programar la reanudación del juego después de 20 segundos
+            setTimeout(() => {
+                // Enviar aviso 5 segundos antes de reanudar
+                room.sendAnnouncement("⚠️ El partido se reanudará en 5 segundos.", null, 0xFFFF00, "bold", 2);
+                
+                // Programar la reanudación final
+                setTimeout(() => {
+                    room.sendAnnouncement("▶️ La pausa ha terminado. ¡El partido se reanuda!", null, 0x00FF00, "bold", 2);
+                    room.pauseGame(false);
+                    
+                    // Reiniciar variables de pausa
+                    pausaSolicitada = false;
+                    jugadorSolicitante = null;
+                    pausaActiva = false;
+                }, 5000);
+            }, 15000); // 15 + 5 = 20 segundos en total
+            
+            return false;
+        } 
+        // Si el mismo jugador intenta confirmar su propia pausa
+        else {
+            room.sendAnnouncement(`[❌] No puedes confirmar tu propia solicitud de pausa. Otro jugador debe confirmarla.`, player.id, 0xFF0000, "bold", 2);
+            return false;
+        }
+    }
     
         // 6. CHAT NORMAL
         room.sendAnnouncement(`${prefix}${player.name}: ${message}`, null, chatColor);
