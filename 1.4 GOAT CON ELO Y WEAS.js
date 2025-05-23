@@ -8591,10 +8591,15 @@ let Cor = {
 
     /* OPÇÕES */
 
-    var afkLimit = 20000000; // 
+    var afkLimit = 20; // 
     var drawTimeLimit = 1; // minutos
     var maxTeamSize = 3; // máximo de jogadores num time, isso funciona para 1 (você pode querer adaptar as coisas para remover algumas estatísticas inúteis em 1v1, como assist ou cs), 2, 3 ou 4
     var slowMode = 0;
+    // Variables para el sistema de slow mode
+var playerLastMessages = new Map(); // Mapa para rastrear último mensaje de cada jugador
+var slowModeWarnings = new Map(); // Contador de advertencias por jugador
+
+
 
     /* JOGADORES */
     const MASTER_AUTH = "OIYE4QbPXlzoDlR7cnj01i0-h3IIfSt5t0x8QtLt4oc"; // Reemplazá esto con tu auth de HaxBall
@@ -9784,62 +9789,71 @@ players.forEach(player => {
                     }
 });
             }
-
-            // Actualizar ELO si fue un partido válido
-            if (Array.isArray(teamR) && Array.isArray(teamB) && teamR.length > 0 && teamB.length > 0) {
-    // Calcular ELO promedio de cada equipo
-                const redTeamAvgElo = typeof getTeamAverageElo === 'function' ? getTeamAverageElo(teamR) : ELO_DEFAULT;
-                const blueTeamAvgElo = typeof getTeamAverageElo === 'function' ? getTeamAverageElo(teamB) : ELO_DEFAULT;
+// Actualizar ELO si fue un partido válido
+if (Array.isArray(teamR) && Array.isArray(teamB) && teamR.length > 0 && teamB.length > 0) {
+    // NUEVA VERIFICACIÓN: Comprobar si es un 3v3 completo
+    if (teamR.length !== 3 || teamB.length !== 3) {
+        // No es un 3v3 completo, mostrar mensaje y NO actualizar ELO
+        room.sendAnnouncement("⚠️ ELO no actualizado: se requiere partido 3v3 completo", null, 0xFF9900, "bold");
+        console.log(`ELO no actualizado - No es 3v3: Red ${teamR.length} vs Blue ${teamB.length}`);
+    } else {
+        // Es un 3v3, continuar con la actualización de ELO
+        room.sendAnnouncement("✅ Partido 3v3 válido: Actualizando ELO de los jugadores", null, 0x00FF00);
+        
+        // Calcular ELO promedio de cada equipo
+        const redTeamAvgElo = typeof getTeamAverageElo === 'function' ? getTeamAverageElo(teamR) : ELO_DEFAULT;
+        const blueTeamAvgElo = typeof getTeamAverageElo === 'function' ? getTeamAverageElo(teamB) : ELO_DEFAULT;
     
-    // Actualizar ELO para cada jugador según resultado
-    const redWon = winner === Team.RED;
-    const blueWon = winner === Team.BLUE;
+        // Actualizar ELO para cada jugador según resultado
+        const redWon = winner === Team.RED;
+        const blueWon = winner === Team.BLUE;
     
-    // Para jugadores rojos
-                if (Array.isArray(teamR) && Array.isArray(game.goals)) {
-    teamR.forEach(player => {
-                        if (!player) return;
+        // Para jugadores rojos
+        if (Array.isArray(teamR) && Array.isArray(game.goals)) {
+            teamR.forEach(player => {
+                if (!player) return;
                         
-        // Calcular puntuación individual (goles + asistencias)
-        let playerScore = 0;
+                // Calcular puntuación individual (goles + asistencias)
+                let playerScore = 0;
                         
-        game.goals.forEach(goal => {
-                            if (goal && goal.striker && goal.striker.id === player.id) {
-                                playerScore++; // Gol
-                            }
-                            if (goal && goal.assist && goal.assist.id === player.id) {
-                                playerScore += 0.5; // Asistencia (vale medio punto)
-                            }
-                        });
+                game.goals.forEach(goal => {
+                    if (goal && goal.striker && goal.striker.id === player.id) {
+                        playerScore++; // Gol
+                    }
+                    if (goal && goal.assist && goal.assist.id === player.id) {
+                        playerScore += 0.5; // Asistencia (vale medio punto)
+                    }
+                });
                         
-                        if (typeof updatePlayerElo === 'function') {
-        updatePlayerElo(player, redWon, playerScore, blueTeamAvgElo);
-                        }
-    });
+                if (typeof updatePlayerElo === 'function') {
+                    updatePlayerElo(player, redWon, playerScore, blueTeamAvgElo);
                 }
+            });
+        }
     
-    // Para jugadores azules
-                if (Array.isArray(teamB) && Array.isArray(game.goals)) {
-    teamB.forEach(player => {
-                        if (!player) return;
+        // Para jugadores azules
+        if (Array.isArray(teamB) && Array.isArray(game.goals)) {
+            teamB.forEach(player => {
+                if (!player) return;
                         
-        // Calcular puntuación individual (goles + asistencias)
-        let playerScore = 0;
+                // Calcular puntuación individual (goles + asistencias)
+                let playerScore = 0;
                         
-        game.goals.forEach(goal => {
-                            if (goal && goal.striker && goal.striker.id === player.id) {
-                                playerScore++; // Gol
-                            }
-                            if (goal && goal.assist && goal.assist.id === player.id) {
-                                playerScore += 0.5; // Asistencia (vale medio punto)
-                            }
-                        });
+                game.goals.forEach(goal => {
+                    if (goal && goal.striker && goal.striker.id === player.id) {
+                        playerScore++; // Gol
+                    }
+                    if (goal && goal.assist && goal.assist.id === player.id) {
+                        playerScore += 0.5; // Asistencia (vale medio punto)
+                    }
+                });
                         
-                        if (typeof updatePlayerElo === 'function') {
-        updatePlayerElo(player, blueWon, playerScore, redTeamAvgElo);
-                        }
-    });
+                if (typeof updatePlayerElo === 'function') {
+                    updatePlayerElo(player, blueWon, playerScore, redTeamAvgElo);
                 }
+            });
+        }
+    }
 }
 
         // Con esto:
@@ -10120,6 +10134,52 @@ function setGK(player, value) {
         return false;
     } catch (err) {
         return false;
+    }
+}
+
+// Función para verificar si un jugador puede hablar según el slow mode
+function canPlayerChat(player) {
+    // Si el slow mode está desactivado, siempre puede hablar
+    if (slowMode <= 0) return true;
+    
+    // Si es admin, puede hablar siempre (opcional, puedes quitar esta línea)
+    if (getRole(player) >= Role.ADMIN_PERM) return true;
+    
+    const now = Date.now();
+    const lastMessageTime = playerLastMessages.get(player.id) || 0;
+    const timeElapsed = now - lastMessageTime;
+    const minTimeRequired = 1000 / slowMode; // Tiempo mínimo entre mensajes en ms
+    
+    // Actualizar el tiempo del último mensaje
+    playerLastMessages.set(player.id, now);
+    
+    // Si no ha pasado suficiente tiempo, es spam
+    if (timeElapsed < minTimeRequired) {
+        // Incrementar contador de advertencias
+        const warnings = slowModeWarnings.get(player.id) || 0;
+        slowModeWarnings.set(player.id, warnings + 1);
+        
+        // Si excede 3 advertencias, mutear por 1 minuto
+        if (warnings >= 2) {
+            const muteUntil = now + 60000; // 1 minuto
+            mutedPlayers.set(player.id, {
+                name: player.name,
+                auth: player.auth,
+                until: muteUntil
+            });
+            
+            room.sendAnnouncement(`🤐 ${player.name} ha sido muteado por 1 minuto por spam.`, null, 0xFF4C4C, "bold");
+            slowModeWarnings.delete(player.id); // Reiniciar advertencias
+            return false;
+        }
+        
+        // Mostrar advertencia
+        room.sendAnnouncement(`⚠️ Slow mode activado: Espera ${(minTimeRequired/1000).toFixed(1)} segundos entre mensajes. Advertencia ${warnings + 1}/3`, player.id, 0xFF9900, "bold");
+        return false;
+    } else {
+        // Si ha pasado suficiente tiempo, reiniciar las advertencias
+        slowModeWarnings.delete(player.id);
+        return true;
     }
 }
 
@@ -11461,7 +11521,39 @@ function updateStats() {
     const commands = {
 
     // ... otros comandos ...
-
+'slow': (player, args) => {
+    // Verificar permisos
+    if (getRole(player) < Role.ADMIN_PERM) {
+        room.sendAnnouncement("❌ No tenés permisos para usar este comando.", player.id, 0xFF0000);
+        return false;
+    }
+    
+    if (!args[0]) {
+        room.sendAnnouncement(`ℹ️ Modo lento: ${slowMode > 0 ? slowMode + ' mensajes/segundo' : 'Desactivado'}`, player.id, 0x00FF00);
+        return false;
+    }
+    
+    const limit = parseFloat(args[0]);
+    
+    if (isNaN(limit) || limit < 0) {
+        room.sendAnnouncement("❌ Uso: !slow <mensajes_por_segundo o 0 para desactivar>", player.id, 0xFF0000);
+        return false;
+    }
+    
+    slowMode = limit;
+    
+    // Limpiar registros
+    playerLastMessages.clear();
+    slowModeWarnings.clear();
+    
+    if (slowMode > 0) {
+        room.sendAnnouncement(`🕒 ${player.name} ha activado el modo lento: Máximo ${slowMode} mensajes por segundo.`, null, 0x00FF00, "bold");
+    } else {
+        room.sendAnnouncement(`🕒 ${player.name} ha desactivado el modo lento.`, null, 0x00FF00, "bold");
+    }
+    
+    return false;
+},
   
         'debugdb': (player) => {
             const role = getRole(player);
@@ -13539,7 +13631,10 @@ function updateStats() {
                 mutedPlayers.delete(player.id);
             }
         }
-    
+    // NUEVO: Verificar el slow mode
+    if (!canPlayerChat(player)) {
+        return false;
+    }
         // Modificar esta parte en onPlayerChat para anunciar correctamente las selecciones
         // Modificar esta parte en onPlayerChat para que funcione correctamente con top, random y bottom
         // Modificar esta parte en onPlayerChat para anunciar correctamente las selecciones con mejor estética
