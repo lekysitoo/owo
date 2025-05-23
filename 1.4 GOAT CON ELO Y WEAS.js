@@ -2,7 +2,7 @@
 const roomName = "🐐 𝐆𝐎𝐀𝐓 𝐋𝐄𝐕𝐄𝐋  🐐  🔵   BIG X3   🔵";
 const botName = "Judge";
 const maxPlayers = 16; // maximum number of players in the room
-const roomPublic = true; // true = public room | false = players only enter via the room link (it does not appear in the room list)
+const roomPublic = false; // true = public room | false = players only enter via the room link (it does not appear in the room list)
 // Usá = en lugar de : para asignar el valor
 const geo = { code: "ar", lat: -34.6374, lon: -58.4058 };
 const room = HBInit({
@@ -15,8 +15,8 @@ const room = HBInit({
 });
 
 
-     const scoreLimitClassic = 3;
-    const scoreLimitBig = 3;
+     const scoreLimitClassic = 1;
+    const scoreLimitBig = 1;
     const timeLimitClassic = 3;
     const timeLimitBig = 3; 
     const scoreLimitPractice = 3;
@@ -31,6 +31,17 @@ const room = HBInit({
     let jugadoresConfirmandoReinicio = {}; // Almacena los jugadores que han confirmado el reinicio
     let confirmacionesReinicio = {};
     let autoStartTimeout = null;
+   
+    // 3. Mejorar el comando "me reinicio" para que también tenga un timeout
+// Variables para el sistema de reinicio
+let reinicioSolicitado = false;
+let jugadorReinicio = null;
+let timeoutReinicio = null;
+
+// 2. Mejorar el sistema de pausa para que se cancele automáticamente si nadie confirma
+// Variables para el sistema de pausa
+
+let timeoutPausa = null;
    
 // Añade esta línea en la parte superior del script, donde definas otras variables globales
 const resetConfirmations = new Map(); // Para almacenar las confirmaciones de reinicio
@@ -204,14 +215,19 @@ function updatePlayerElo(player, won, playerScore, opposingTeamAvgElo) {
                 room.sendAnnouncement(`¡Felicidades! Has subido de rango: ${rankBefore.icon} ${rankBefore.name} → ${rankAfter.icon} ${rankAfter.name}`, player.id, 0xFDC43A, "bold");
             }
                     
-        // Actualizar nombre con el nuevo rango ELO
-        setTimeout(() => {
-            updatePlayerName(player);
-        }, 1000);
         });
     })
+
+    
     .catch(error => console.error("Error actualizando ELO:", error));
 
+    try {
+        if (typeof updatePlayerName === 'function') {
+            updatePlayerName(player);
+        }
+    } catch (e) {
+        console.error("No se pudo actualizar el nombre después de ELO:", e);
+    }
 
     
 }
@@ -8575,7 +8591,7 @@ let Cor = {
 
     /* OPÇÕES */
 
-    var afkLimit = 20; // 
+    var afkLimit = 20000000; // 
     var drawTimeLimit = 1; // minutos
     var maxTeamSize = 3; // máximo de jogadores num time, isso funciona para 1 (você pode querer adaptar as coisas para remover algumas estatísticas inúteis em 1v1, como assist ou cs), 2, 3 ou 4
     var slowMode = 0;
@@ -8907,10 +8923,6 @@ function getChatFormat(player) {
         const auth = getAuth(player);
         if (!auth) return Role.PLAYER;
 
-        // Debug para verificar
-        console.log(`Verificando rol para ${player.name}`);
-        console.log(`Auth: ${auth}`);
-        console.log(`Rol actual en Map: ${playerRoles.get(auth)}`);
 
         return playerRoles.get(auth) || Role.PLAYER;
     }
@@ -8938,22 +8950,75 @@ function getChatFormat(player) {
 
 
 
-// Esta función actualiza los nombres con prefijos
+// 1. Primero arreglamos la función updatePlayerName
 function updatePlayerName(player) {
-    const format = getChatFormat(player);
-    const newName = format.prefix + player.name.replace(/^[^\w\d\s]+ /, ''); // Quitamos cualquier prefix existente
-    
-    if (player.name !== newName) {
-        room.setPlayerName(player.id, newName);
+    try {
+        // La función setPlayerName no está disponible en esta versión de la API
+        // En lugar de intentar cambiar el nombre, solo registramos el intento
+        console.log(`Intentando actualizar nombre de ${player.name} - función no disponible`);
+        
+        // Podemos guardar el prefijo que querríamos aplicar para usarlo en otros lugares
+        const role = getRole(player);
+        let prefix = "";
+        
+        switch (role) {
+            case Role.MASTER:
+            case Role.OWNER:
+                prefix = "👑 ";
+                break;
+            case Role.CO_OWNER:
+                prefix = "⭐ ";
+                break;
+            case Role.SUPERADMIN:
+                prefix = "🔰 ";
+                break;
+            case Role.ADMIN_PERM:
+                prefix = "🛡️ ";
+                break;
+            default:
+                prefix = "";
+        }
+        
+        // Podemos guardar el prefijo en algún lugar para usarlo en mensajes
+        // Por ejemplo, en un Map global
+        if (typeof playerPrefixes === 'undefined') {
+            window.playerPrefixes = new Map();
+        }
+        
+        if (prefix) {
+            playerPrefixes.set(player.id, prefix);
+        }
+        
+        return true;
+    } catch (error) {
+        console.error("Error al actualizar nombre:", error);
+        return false;
     }
 }
 
-// Función para actualizar todos los nombres
+
+
+// 2. También necesitamos arreglar la función updateAllPlayerNames
 function updateAllPlayerNames() {
+    try {
     const players = room.getPlayerList();
+        if (!players || !Array.isArray(players)) return;
+        
+        // En lugar de intentar cambiar nombres, solo registramos el intento
+        console.log("Actualizando nombres de todos los jugadores (función no disponible)");
+        
+        // Podemos recorrer los jugadores para actualizar sus prefijos en nuestro Map
     players.forEach(player => {
+            if (player) {
         updatePlayerName(player);
-    });
+            }
+        });
+        
+        return true;
+    } catch (error) {
+        console.error("Error al actualizar todos los nombres:", error);
+        return false;
+    }
 }
 
 // Actualizar la función updatePlayerStats para sincronizar también con localStorage
@@ -9562,20 +9627,36 @@ function recoverAccount(player, inputCode) {
     }
     
     function endGame(winner) {
+        try {
+            const players = room.getPlayerList();
       
-          // Calcular la figura del partido
+            // Calcular la figura del partido de manera segura
     const matchPlayers = getMatchPlayers();
     const mvp = calculateMVP(matchPlayers);
     
-        // handles the end of a game : no stopGame function inside
-        players.length >= 2 * maxTeamSize - 1 ? activateChooseMode() : null;
+            // Activar modo de selección si hay suficientes jugadores
+            if (players.length >= 2 * maxTeamSize - 1) {
+                activateChooseMode();
+            }
+            
+            // Obtener y guardar puntuaciones
         const scores = room.getScores();
+            if (!scores) {
+                console.error("Error: No se pudieron obtener las puntuaciones");
+                return;
+            }
         
         game.scores = scores;
-        Rposs = Rposs / (Rposs + Bposs);
+            
+            // Calcular posesión
+            Rposs = (Rposs + Bposs) > 0 ? Rposs / (Rposs + Bposs) : 0.5;
         Bposs = 1 - Rposs;
+            
+            // Actualizar ganador y racha
         lastWinner = winner;
         endGameVariable = true;
+            
+            // Anunciar resultado
         if (winner == Team.RED) {
             streak++;
             room.sendAnnouncement(
@@ -9602,6 +9683,8 @@ function recoverAccount(player, inputCode) {
             streak = 0;
             room.sendAnnouncement('💤 Draw limit reached! 💤');
         }
+            
+            // Anunciar posesión
         room.sendAnnouncement(
             '⭐ Posesión: 🔴 ' +
                 (Rposs * 100).toPrecision(3).toString() +
@@ -9609,36 +9692,42 @@ function recoverAccount(player, inputCode) {
                 (Bposs * 100).toPrecision(3).toString() +
                 '% 🔵'
         );
-        scores.red == 0
-            ? scores.blue == 0
-                ? room.sendAnnouncement(
-                      '🏆 ' +
-                          GKList[0].name +
-                          ' y ' +
-                          GKList[1].name +
-                          ' Mantuvieron la valla invicta! '
-                  )
-                : room.sendAnnouncement('🏆 ' + GKList[1].name + ' Mantuvo la valla invicta! ')
-            : scores.blue == 0
-            ? room.sendAnnouncement('🏆 ' + GKList[0].name + ' Mantuvo la valla invicta! ')
-            : null;
-
-            // En la función endGame, después de actualizar otras estadísticas
+            
+            // Anunciar vallas invictas con verificaciones de null
+            if (scores) {
+                // Verificar que GKList exista y tenga elementos
+                if (Array.isArray(GKList) && GKList.length >= 2) {
+                    const redGK = GKList[0];
+                    const blueGK = GKList[1];
+                    
+                    if (scores.red === 0 && scores.blue === 0) {
+                        // Ambos equipos mantuvieron valla invicta
+                        if (redGK && blueGK) {
+                            room.sendAnnouncement(
+                                '🏆 ' + redGK.name + ' y ' + blueGK.name + ' Mantuvieron la valla invicta! '
+                            );
+                        }
+                    } else if (scores.red === 0) {
+                        // Solo el equipo azul mantuvo valla invicta
+                        if (blueGK) {
+                            room.sendAnnouncement('🏆 ' + blueGK.name + ' Mantuvo la valla invicta! ');
+                        }
+                    } else if (scores.blue === 0) {
+                        // Solo el equipo rojo mantuvo valla invicta
+                        if (redGK) {
+                            room.sendAnnouncement('🏆 ' + redGK.name + ' Mantuvo la valla invicta! ');
+                        }
+                    }
+                    
 // Actualizar vallas invictas consecutivas para arqueros
-if (GKList[0] && game.scores.blue === 0) {
-    // Arquero del equipo rojo mantuvo valla invicta
-    updateConsecutiveCleanSheets(GKList[0], true);
-} else if (GKList[0]) {
-    // Arquero del equipo rojo recibió goles
-    updateConsecutiveCleanSheets(GKList[0], false);
-}
-
-if (GKList[1] && game.scores.red === 0) {
-    // Arquero del equipo azul mantuvo valla invicta
-    updateConsecutiveCleanSheets(GKList[1], true);
-} else if (GKList[1]) {
-    // Arquero del equipo azul recibió goles
-    updateConsecutiveCleanSheets(GKList[1], false);
+                    if (redGK && scores) {
+                        updateConsecutiveCleanSheets(redGK, scores.blue === 0);
+                    }
+                    
+                    if (blueGK && scores) {
+                        updateConsecutiveCleanSheets(blueGK, scores.red === 0);
+                    }
+                }
 }
        
               // Anunciar la figura del partido al final
@@ -9669,70 +9758,113 @@ if (GKList[1] && game.scores.red === 0) {
                     // Incrementar contador de MVPs o inicializarlo
                     const currentMvps = (userData.stats && userData.stats.mvps) ? userData.stats.mvps : 0;
                     
-                    // Actualizar stats
-                    updatePlayerStats(getPlayerById(mvp.id), {
+                                // Verificar que getPlayerById y updatePlayerStats existan
+                                const mvpPlayer = getPlayerById(mvp.id);
+                                if (mvpPlayer && typeof updatePlayerStats === 'function') {
+                                    updatePlayerStats(mvpPlayer, {
                         mvps: currentMvps + 1
                     });
+                                }
                 }
             })
             .catch(error => console.error("Error actualizando MVPs:", error));
         }
     }
 
-  // En lugar de llamar directamente a balanceTeams, programamos para que se ejecute después de stopGame
-  setTimeout(() => {
-    console.log("Ejecutando balanceTeams después de terminar el partido");
-    balanceTeams();
-}, 2500); // Damos tiempo suficiente para que room.stopGame() se complete
-
+            // Actualizar estadísticas
+            if (typeof updateStats === 'function') {
 updateStats();
+            }
 
-const players = room.getPlayerList();
+            // Sincronizar estadísticas de jugadores con Firebase
+            if (Array.isArray(players)) {
 players.forEach(player => {
-    setTimeout(() => syncPlayerStats(player, true), 2000); // Forzamos actualización a Firebase
+                    if (player && typeof syncPlayerStats === 'function') {
+                        setTimeout(() => syncPlayerStats(player, true), 2000);
+                    }
 });
+            }
 
-// Si fue un partido válido con suficientes jugadores
-if (teamR.length > 0 && teamB.length > 0) {
+            // Actualizar ELO si fue un partido válido
+            if (Array.isArray(teamR) && Array.isArray(teamB) && teamR.length > 0 && teamB.length > 0) {
     // Calcular ELO promedio de cada equipo
-    const redTeamAvgElo = getTeamAverageElo(teamR);
-    const blueTeamAvgElo = getTeamAverageElo(teamB);
+                const redTeamAvgElo = typeof getTeamAverageElo === 'function' ? getTeamAverageElo(teamR) : ELO_DEFAULT;
+                const blueTeamAvgElo = typeof getTeamAverageElo === 'function' ? getTeamAverageElo(teamB) : ELO_DEFAULT;
     
     // Actualizar ELO para cada jugador según resultado
     const redWon = winner === Team.RED;
     const blueWon = winner === Team.BLUE;
     
     // Para jugadores rojos
+                if (Array.isArray(teamR) && Array.isArray(game.goals)) {
     teamR.forEach(player => {
+                        if (!player) return;
+                        
         // Calcular puntuación individual (goles + asistencias)
         let playerScore = 0;
+                        
         game.goals.forEach(goal => {
-            if (goal.striker.id === player.id) playerScore++; // Gol
-            if (goal.assist && goal.assist.id === player.id) playerScore += 0.5; // Asistencia (vale medio punto)
-        });
-        
+                            if (goal && goal.striker && goal.striker.id === player.id) {
+                                playerScore++; // Gol
+                            }
+                            if (goal && goal.assist && goal.assist.id === player.id) {
+                                playerScore += 0.5; // Asistencia (vale medio punto)
+                            }
+                        });
+                        
+                        if (typeof updatePlayerElo === 'function') {
         updatePlayerElo(player, redWon, playerScore, blueTeamAvgElo);
+                        }
     });
+                }
     
     // Para jugadores azules
+                if (Array.isArray(teamB) && Array.isArray(game.goals)) {
     teamB.forEach(player => {
+                        if (!player) return;
+                        
         // Calcular puntuación individual (goles + asistencias)
         let playerScore = 0;
+                        
         game.goals.forEach(goal => {
-            if (goal.striker.id === player.id) playerScore++; // Gol
-            if (goal.assist && goal.assist.id === player.id) playerScore += 0.5; // Asistencia (vale medio punto)
-        });
-        
+                            if (goal && goal.striker && goal.striker.id === player.id) {
+                                playerScore++; // Gol
+                            }
+                            if (goal && goal.assist && goal.assist.id === player.id) {
+                                playerScore += 0.5; // Asistencia (vale medio punto)
+                            }
+                        });
+                        
+                        if (typeof updatePlayerElo === 'function') {
         updatePlayerElo(player, blueWon, playerScore, redTeamAvgElo);
+                        }
     });
+                }
 }
 
-   // Después de actualizar ELO
+        // Con esto:
    setTimeout(() => {
+        try {
+            // Intentar actualizar nombres, pero no preocuparse si falla
+            if (typeof updateAllPlayerNames === 'function') {
     updateAllPlayerNames();
-}, 5000); // Esperamos 5 segundos para que todos los ELO se actualicen
-
-
+            }
+        } catch (e) {
+            console.error("No se pudieron actualizar los nombres:", e);
+        }
+    }, 5000);
+            
+            // Balancear equipos después de un tiempo
+            setTimeout(() => {
+                console.log("Ejecutando balanceTeams después de terminar el partido");
+                if (typeof balanceTeams === 'function') {
+                    balanceTeams();
+                }
+            }, 2500);
+            
+        } catch (error) {
+            console.error("Error en endGame:", error);
+        }
     }
     
     function quickRestart() {
@@ -9908,11 +10040,12 @@ function updateConsecutiveCleanSheets(player, keptCleanSheet) {
     .catch(error => console.error("Error actualizando vallas invictas consecutivas:", error));
 }
 
+
+// 1. Primero arreglamos las funciones getGK y setGK
 function getGK(team) {
     try {
-        // Verificar que el equipo sea válido
+        // Verificar que el equipo sea un número válido (1 o 2)
         if (team !== 1 && team !== 2) {
-            console.error("Equipo no válido en getGK:", team);
             return null;
         }
         
@@ -9944,47 +10077,52 @@ function getGK(team) {
             }
         }
 
-        // Solo retornar si realmente jugó como arquero (algo de tiempo)
-        if (maxGKTime > 0) {
             return gkPlayer;
-        }
-        return null;
     } catch (err) {
-        console.error("Error en getGK:", err);
         return null;
     }
 }
 
-function setGK(player, value) {
-    if (!player || player.id == null) {
-        console.error("Jugador inválido en setGK:", player);
-        return false;
-    }
-    
-    if (!extendedP || !Array.isArray(extendedP)) {
-        console.error("extendedP no es un array válido");
-        return false;
-    }
-    
+// Nueva función para obtener el tiempo como GK de un jugador
+function getGKTime(player) {
     try {
-        let playerData = extendedP.find(p => p && Array.isArray(p) && p[eP.ID] === player.id);
+        if (!player || player.id == null) return 0;
         
-        if (playerData) {
-            playerData[eP.GK] = value;
-            return true;
-        } else {
-            // Si no encontramos el jugador, agregarlo
-            const newPlayerData = new Array(Object.keys(eP).length).fill(0);
-            newPlayerData[eP.ID] = player.id;
-            newPlayerData[eP.GK] = value;
-            extendedP.push(newPlayerData);
+        // Buscar al jugador en extendedP
+        for (let i = 0; i < extendedP.length; i++) {
+            if (extendedP[i] && extendedP[i][eP.ID] === player.id) {
+                return extendedP[i][eP.GK] || 0;
+            }
+        }
+        
+        return 0;
+    } catch (err) {
+        return 0;
+    }
+}
+
+// Función setGK mejorada
+function setGK(player, value) {
+    try {
+        // Verificar si el jugador es válido
+        if (!player || player.id == null) {
+            return false;
+        }
+        
+        // Buscar al jugador en extendedP y actualizar su tiempo como GK
+        for (let i = 0; i < extendedP.length; i++) {
+            if (extendedP[i] && extendedP[i][eP.ID] === player.id) {
+                extendedP[i][eP.GK] = value;
             return true;
         }
+        }
+        
+        return false;
     } catch (err) {
-        console.error("Error en setGK:", err);
         return false;
     }
 }
+
 
     function getMute(player) {
         return extendedP.filter((a) => a[0] == player.id) != null ? extendedP.filter((a) => a[0] == player.id)[0][eP.MUTE] : null;
@@ -10055,47 +10193,109 @@ function getMatchPlayers() {
     return players;
 }
 
-// Función para calcular la figura del partido (MVP)
-function calculateMVP(players) {
-    if (!players || players.length === 0) return null;
+// Función calculateMVP corregida
+function calculateMVP() {
+    // Verificamos que game.scores exista y tenga los valores necesarios
+    if (!game || !game.scores) {
+        console.error("Error en calculateMVP: game.scores no está definido");
+        return;
+    }
     
-    // Calcular puntos MVP para cada jugador
-    players.forEach(player => {
-        // Fórmula base: gol = 1 punto, asistencia = 0.7 puntos, atajada = 0.3 puntos, valla invicta = 2 puntos
-        let points = 0;
+    // Determinamos el equipo ganador
+    let winningTeam = null;
+    if (game.scores.red > game.scores.blue) {
+        winningTeam = Team.RED;
+    } else if (game.scores.blue > game.scores.red) {
+        winningTeam = Team.BLUE;
+    } else {
+        // En caso de empate, no hay MVP
+        console.log("Empate - No se calcula MVP");
+        return;
+    }
+    
+    // Obtener jugadores del equipo ganador
+    const winningPlayers = room.getPlayerList().filter(p => p.team === winningTeam);
+    
+    // Si no hay jugadores en el equipo ganador, salimos
+    if (!winningPlayers || winningPlayers.length === 0) {
+        console.log("No hay jugadores en el equipo ganador");
+        return;
+    }
+    
+    // Calcular puntuaciones para MVP
+    let bestScore = -1;
+    let mvpPlayer = null;
+    
+    winningPlayers.forEach(player => {
+        // Buscar estadísticas del jugador
+        const playerStats = getPlayerStats(player);
+        if (!playerStats) return;
         
-        // Goles
-        points += player.goals * 1.0;
+        // Calcular puntuación MVP (ajusta esta fórmula según tus preferencias)
+        const goals = playerStats.goals || 0;
+        const assists = playerStats.assists || 0;
+        const saves = playerStats.saves || 0;
         
-        // Asistencias
-        points += player.assists * 0.7;
+        // Fórmula de ejemplo: goles*3 + asistencias*2 + atajadas*1
+        const mvpScore = (goals * 3) + (assists * 2) + (saves * 1);
         
-        // Atajadas (si es arquero)
-        if (player.isGK) {
-            points += player.saves * 0.3;
+        // Actualizar si es el mejor hasta ahora
+        if (mvpScore > bestScore) {
+            bestScore = mvpScore;
+            mvpPlayer = player;
         }
-        
-        // Bonus por valla invicta
-        if (player.cleanSheet) {
-            points += 2.0;
-        }
-        
-        // Bonus por victoria
-        const isWinner = (player.team === Team.RED && winner === Team.RED) || 
-                         (player.team === Team.BLUE && winner === Team.BLUE);
-        if (isWinner) {
-            points += 0.5;
-        }
-        
-        // Guardar puntos MVP
-        player.mvpPoints = points;
     });
     
-    // Ordenar jugadores por puntos MVP (mayor a menor)
-    players.sort((a, b) => b.mvpPoints - a.mvpPoints);
+    // Si encontramos un MVP, anunciarlo y actualizar sus estadísticas
+    if (mvpPlayer && bestScore > 0) {
+        // Anunciar MVP
+        room.sendAnnouncement(`🌟 MVP DEL PARTIDO: ${mvpPlayer.name}`, null, 0xFFD700, "bold");
+        
+        // Actualizar estadísticas de MVP en localStorage
+        const auth = getAuth(mvpPlayer);
+        if (auth) {
+            try {
+                let stats = JSON.parse(localStorage.getItem(auth)) || {};
+                stats.mvps = (stats.mvps || 0) + 1;
+                localStorage.setItem(auth, JSON.stringify(stats));
+                
+                // También actualizar en Firebase si está disponible
+                const url = `${FIREBASE_URL}/players/${auth}.json?auth=${FIREBASE_API_KEY}`;
+                fetch(url)
+                    .then(response => response.json())
+                    .then(userData => {
+                        if (userData) {
+                            if (!userData.stats) userData.stats = {};
+                            userData.stats.mvps = (userData.stats.mvps || 0) + 1;
+                            
+                            fetch(url, {
+                                method: 'PATCH',
+                                body: JSON.stringify({ stats: userData.stats })
+                            });
+                        }
+                    })
+                    .catch(error => console.error("Error actualizando MVP en Firebase:", error));
+            } catch (e) {
+                console.error("Error actualizando MVP en localStorage:", e);
+            }
+        }
+    }
+}
+
+// Función auxiliar para obtener estadísticas de un jugador
+function getPlayerStats(player) {
+    if (!player || !game || !game.goals || !game.assists) return null;
     
-    // Retornar el jugador con más puntos
-    return players.length > 0 ? players[0] : null;
+    // Contar goles
+    const goals = game.goals.filter(g => g.scorer && g.scorer.id === player.id).length;
+    
+    // Contar asistencias
+    const assists = game.assists.filter(a => a.assister && a.assister.id === player.id).length;
+    
+    // Contar atajadas (si tienes esta estadística)
+    const saves = 0; // Implementa esto si tienes un sistema de atajadas
+    
+    return { goals, assists, saves };
 }
 
 // Función para obtener los goles de un jugador en el partido actual
@@ -10301,16 +10501,33 @@ function balanceTeams() {
     }
 }
 function choosePlayer() {
+    try {
     clearTimeout(timeOutCap);
+        
+        // Actualizar listas de equipos para asegurarnos de tener datos frescos
+        updateTeams();
     
     // Verificar que haya espectadores para elegir
-    if (teamS.length === 0) {
+        if (!teamS || teamS.length === 0) {
         console.log("No hay espectadores para elegir");
+            
+            // Si no hay espectadores pero los equipos están desbalanceados, intentar balancearlos
+            if (Math.abs(teamR.length - teamB.length) > 1) {
+                console.log("Equipos desbalanceados, intentando balancear automáticamente");
+                balanceTeams();
+            }
+            
+            // Si ya no hay espectadores, desactivar el modo de selección
+            if (inChooseMode) {
+                console.log("Desactivando modo selección por falta de espectadores");
+                deactivateChooseMode();
+            }
+            
         return;
     }
     
     // Verificar que haya al menos un equipo con jugadores
-    if (teamR.length === 0 && teamB.length === 0) {
+        if (!teamR || !teamB || (teamR.length === 0 && teamB.length === 0)) {
         console.log("Ambos equipos están vacíos, cancelando modo selección");
         deactivateChooseMode();
         return;
@@ -10318,14 +10535,47 @@ function choosePlayer() {
     
     console.log("Iniciando selección - Rojo:", teamR.length, "Azul:", teamB.length, "Espectadores:", teamS.length);
     
-    // Determinar qué capitán debe elegir
+        // Determinar qué capitán debe elegir basado en el tamaño de los equipos
     let captain = null;
     let teamColor = null;
-    
-    if (teamR.length <= teamB.length && teamR.length != 0) {
+        let teamName = "";
+        let teamEmoji = "";
+        
+        // Lógica mejorada para determinar qué equipo elige:
+        // - Si un equipo tiene menos jugadores, ese equipo elige
+        // - Si ambos tienen igual número, el equipo rojo elige primero
+        if ((teamR.length < teamB.length) || (teamR.length === teamB.length && teamR.length > 0)) {
+            // Equipo rojo elige
+            if (teamR.length > 0) {
         captain = teamR[0];
         teamColor = 0xFF3333; // Rojo más vibrante
+                teamName = "ROJO";
+                teamEmoji = "🔴";
+            } else {
+                console.log("Error: No hay jugadores en el equipo rojo");
+                return;
+            }
+        } else if (teamB.length < teamR.length || (teamB.length === teamR.length && teamB.length > 0)) {
+            // Equipo azul elige
+            if (teamB.length > 0) {
+                captain = teamB[0];
+                teamColor = 0x3333FF; // Azul más vibrante
+                teamName = "AZUL";
+                teamEmoji = "🔵";
+            } else {
+                console.log("Error: No hay jugadores en el equipo azul");
+                return;
+            }
+        } else {
+            console.log("Error en la lógica de selección de capitán");
+            return;
+        }
         
+        console.log(`Capitán seleccionado: ${captain ? captain.name : 'null'} del equipo ${teamName}`);
+        console.log(`Estado de equipos: Rojo ${teamR.length}, Azul ${teamB.length}, Espectadores ${teamS.length}`);
+        
+        // Si hay un capitán válido, mostrar mensajes y lista de espectadores
+        if (captain) {
         // Anuncio público de quién debe elegir (para todos)
         room.sendAnnouncement(
             centerText(`⚡ TURNO DE ELECCIÓN ⚡`), 
@@ -10335,17 +10585,17 @@ function choosePlayer() {
             2
         );
         room.sendAnnouncement(
-            centerText(`El capitán ${captain.name} (🔴) debe elegir un jugador`), 
+                centerText(`El capitán ${captain.name} (${teamEmoji}) debe elegir un jugador`), 
             null, 
-            0xFF3333, 
+                teamColor, 
             "bold"
         );
         
-        // Enviar mensaje SOLO al capitán rojo
+            // Enviar mensaje SOLO al capitán
         room.sendAnnouncement(
             centerText(`🎮 ES TU TURNO DE ELEGIR 🎮`),
             captain.id,
-            0xFF3333,
+                teamColor,
             "bold",
             2
         );
@@ -10357,17 +10607,22 @@ function choosePlayer() {
             "bold"
         );
         
+            // Mostrar la lista de espectadores al capitán
+            getSpecList(captain, teamColor);
+            
+            // Configurar temporizadores para recordatorio y expulsión
         timeOutCap = setTimeout(
             function (player) {
+                    if (player && room.getPlayer(player.id)) {
                 room.sendAnnouncement(
                     centerText(`⚠️ ¡APURATE @${player.name}! ⚠️`),
                     player.id,
-                    0xFF3333,
+                            teamColor,
                     "bold",
                     1
                 );
                 room.sendAnnouncement(
-                    centerText(`Solo ${Number.parseInt(chooseTime / 2)} segundos para elegir`),
+                            centerText(`Solo ${Math.floor(chooseTime / 2)} segundos para elegir`),
                     player.id,
                     0xFFFFFF,
                     "bold"
@@ -10375,143 +10630,246 @@ function choosePlayer() {
                 
                 timeOutCap = setTimeout(
                     function (player) {
-                        room.kickPlayer(
-                            player.id,
-                            "¡No elegiste a tiempo!",
-                            false
-                        );
-                    },
-                    chooseTime * 500,
-                    player
-                );
-            },
-            chooseTime * 1000,
-            captain
-        );
-    } else if (teamB.length < teamR.length && teamB.length != 0) {
-        captain = teamB[0];
-        teamColor = 0x3333FF; // Azul más vibrante
-        
-        // Anuncio público de quién debe elegir (para todos)
+                                if (player && room.getPlayer(player.id)) {
+                                    // En lugar de expulsar, elegir automáticamente
         room.sendAnnouncement(
-            centerText(`⚡ TURNO DE ELECCIÓN ⚡`), 
+                                        centerText(`⏱️ ¡Tiempo agotado! Eligiendo automáticamente...`),
             null, 
-            0xFFFFFF, 
-            "bold", 
-            2
-        );
-        room.sendAnnouncement(
-            centerText(`El capitán ${captain.name} (🔵) debe elegir un jugador`), 
-            null, 
-            0x3333FF, 
+                                        0xFF9900,
             "bold"
         );
         
-        // Enviar mensaje SOLO al capitán azul
-        room.sendAnnouncement(
-            centerText(`🎮 ES TU TURNO DE ELEGIR 🎮`),
-            captain.id,
-            0x3333FF,
-            "bold",
-            2
-        );
-        
-        room.sendAnnouncement(
-            centerText(`Escribe un número o usa 'top', 'random', 'bottom'`),
-            captain.id,
-            0xFFFFFF,
-            "bold"
-        );
-        
-        timeOutCap = setTimeout(
-            function (player) {
+                                    // Elegir un jugador aleatorio
+                                    if (teamS.length > 0) {
+                                        const randomIndex = Math.floor(Math.random() * teamS.length);
+                                        const chosenPlayer = teamS[randomIndex];
+                                        
+                                        if (chosenPlayer) {
+                                            const targetTeam = teamName === "ROJO" ? Team.RED : Team.BLUE;
+                                            room.setPlayerTeam(chosenPlayer.id, targetTeam);
+                                            
                 room.sendAnnouncement(
-                    centerText(`⚠️ ¡APURATE @${player.name}! ⚠️`),
-                    player.id,
-                    0x3333FF,
-                    "bold",
-                    1
-                );
-                room.sendAnnouncement(
-                    centerText(`Solo ${Number.parseInt(chooseTime / 2)} segundos para elegir`),
-                    player.id,
-                    0xFFFFFF,
+                                                centerText(`Sistema eligió a ${chosenPlayer.name} para el equipo ${teamName}`),
+                                                null,
+                                                teamColor,
                     "bold"
                 );
                 
-                timeOutCap = setTimeout(
-                    function (player) {
-                        room.kickPlayer(
-                            player.id,
-                            "¡No elegiste a tiempo!",
-                            false
-                        );
+                                            // Continuar con la selección
+                                            setTimeout(() => {
+                                                if (inChooseMode) choosePlayer();
+                                            }, 1000);
+                                        }
+                                    }
+                                }
                     },
                     chooseTime * 500,
                     player
                 );
+                    }
             },
             chooseTime * 1000,
             captain
         );
-    }
-    
-    // Si hay un capitán válido, mostrar la lista de espectadores
-    if (captain) {
-        getSpecList(captain, teamColor);
+        } else {
+            console.log("No se pudo determinar un capitán válido");
+            
+            // Si no se puede determinar un capitán, intentar balancear automáticamente
+            balanceTeams();
+            deactivateChooseMode();
+        }
+    } catch (error) {
+        console.error("Error en choosePlayer:", error);
+        
+        // En caso de error, intentar recuperarse
+        balanceTeams();
+        if (inChooseMode) {
+            deactivateChooseMode();
+        }
     }
 }
 
 
 
-function getSpecList(player, teamColor) {
-    // Protección contra null
-    if (!player) {
-        console.log("Error: getSpecList llamado con jugador nulo");
-        return;
+// Función para procesar solicitudes de pausa
+function processPauseRequest(player) {
+    // Si ya hay una pausa activa, ignorar
+    if (pausaActiva) {
+        room.sendAnnouncement(`[❌] Ya hay una pausa activa en este momento.`, player.id, 0xFF0000, "bold", 2);
+        return false;
     }
-    
-    // Verificar si hay espectadores
-    if (teamS.length === 0) {
+
+    // Si no hay una solicitud de pausa pendiente, crear una nueva
+    if (!pausaSolicitada) {
+        pausaSolicitada = true;
+        jugadorSolicitante = player.id;
+        room.sendAnnouncement(`⏸️ ${player.name} ha solicitado una pausa. Otro jugador debe confirmar escribiendo "p".`, null, 0xFFFF00, "bold", 2);
+        
+        // Configurar un timeout para cancelar la solicitud después de 10 segundos
+        timeoutPausa = setTimeout(() => {
+            if (pausaSolicitada && !pausaActiva) {
+                room.sendAnnouncement(`⌛ La solicitud de pausa de ${player.name} ha expirado.`, null, 0xFF9900, "bold", 1);
+                pausaSolicitada = false;
+                jugadorSolicitante = null;
+            }
+        }, 10000); // 10 segundos
+        
+        return false;
+    } 
+    // Si hay una solicitud pendiente y este es otro jugador, confirmar la pausa
+    else if (player.id !== jugadorSolicitante) {
+        // Limpiar el timeout de cancelación
+        clearTimeout(timeoutPausa);
+        
+        // Establecer pausa activa para evitar solicitudes múltiples
+        pausaActiva = true;
+        pausaSolicitada = false;
+        
+        // Enviar mensaje de confirmación
+        room.sendAnnouncement(`✅ ${player.name} ha confirmado la pausa. El juego se detendrá por 20 segundos.`, null, 0x00FF00, "bold", 2);
+        
+        // Pausar el juego
+        room.pauseGame(true);
+        
+        // Programar la reanudación del juego después de 20 segundos
+        setTimeout(() => {
+            // Enviar aviso 5 segundos antes de reanudar
+            room.sendAnnouncement("⚠️ El partido se reanudará en 5 segundos.", null, 0xFFFF00, "bold", 2);
+            
+            // Programar la reanudación final
+            setTimeout(() => {
+                room.sendAnnouncement("▶️ La pausa ha terminado. ¡El partido se reanuda!", null, 0x00FF00, "bold", 2);
+                room.pauseGame(false);
+                
+                // Reiniciar variables de pausa
+                pausaSolicitada = false;
+                jugadorSolicitante = null;
+                pausaActiva = false;
+            }, 5000);
+        }, 15000); // 15 + 5 = 20 segundos en total
+        
+        return false;
+    } 
+    // Si el mismo jugador intenta confirmar su propia pausa
+    else {
+        room.sendAnnouncement(`[❌] No puedes confirmar tu propia solicitud de pausa. Otro jugador debe confirmarla.`, player.id, 0xFF0000, "bold", 2);
+        return false;
+    }
+}
+
+
+// Función para procesar solicitudes de reinicio
+function processRestartRequest(player) {
+    // Si ya hay un reinicio activo, ignorar
+    if (reinicioSolicitado) {
+        if (jugadorReinicio === player.id) {
+            room.sendAnnouncement(`[❌] Ya solicitaste un reinicio. Espera a que otro jugador lo confirme.`, player.id, 0xFF0000, "bold", 2);
+        } else {
+            // Confirmar el reinicio
+            clearTimeout(timeoutReinicio);
+            reinicioSolicitado = false;
+            jugadorReinicio = null;
+            
+            // Enviar mensaje de confirmación
+            room.sendAnnouncement(`✅ ${player.name} ha confirmado el reinicio. El partido se reiniciará en 3 segundos.`, null, 0x00FF00, "bold", 2);
+            
+            // Reiniciar el partido
+            setTimeout(() => {
+                room.stopGame();
+                setTimeout(() => {
+                    room.startGame();
+                }, 500);
+            }, 3000);
+        }
+        return false;
+    } else {
+        // Nueva solicitud de reinicio
+        reinicioSolicitado = true;
+        jugadorReinicio = player.id;
+        room.sendAnnouncement(`🔄 ${player.name} ha solicitado reiniciar el partido. Otro jugador debe confirmar escribiendo "me reinicio".`, null, 0xFFFF00, "bold", 2);
+        
+        // Configurar un timeout para cancelar la solicitud después de 10 segundos
+        timeoutReinicio = setTimeout(() => {
+            if (reinicioSolicitado) {
+                room.sendAnnouncement(`⌛ La solicitud de reinicio de ${player.name} ha expirado.`, null, 0xFF9900, "bold", 1);
+                reinicioSolicitado = false;
+                jugadorReinicio = null;
+            }
+        }, 10000); // 10 segundos
+        
+        return false;
+    }
+}
+
+
+// 1. Primero, vamos a mejorar la función getSpecList para mostrar correctamente la lista de espectadores
+function getSpecList(captain, teamColor) {
+    try {
+        // Actualizar la lista de espectadores
+        updateTeams();
+        
+        if (!teamS || teamS.length === 0) {
         room.sendAnnouncement(
-            centerText("❌ No hay jugadores disponibles para elegir"),
-            player.id,
-            0xFF9000,
+                centerText("No hay jugadores disponibles para elegir"),
+                captain.id,
+                teamColor,
             "bold"
         );
         return;
     }
     
-    // Enviar título de la lista
+        // Mostrar cabecera
     room.sendAnnouncement(
-        centerText("👥 JUGADORES DISPONIBLES 👥"),
-        player.id,
-        teamColor || 0x00FF00,
+            centerText("JUGADORES DISPONIBLES:"),
+            captain.id,
+            0xFFFFFF,
         "bold"
     );
     
-    // Crear una lista bonita de jugadores
-    let playerList = "";
-    
-    for (var i = 0; i < teamS.length; i++) {
-        playerList += `${i+1}. ${teamS[i].name}\n`;
-    }
-    
-    // Enviar la lista completa
+        // Mostrar cada jugador con su número
+        for (let i = 0; i < teamS.length; i++) {
+            const player = teamS[i];
+            if (!player) continue;
+            
+            // Obtener estadísticas básicas del jugador si están disponibles
+            let statText = "";
+            try {
+                const auth = getAuth(player);
+                if (auth) {
+                    const stats = JSON.parse(localStorage.getItem(auth)) || {};
+                    const games = stats[Ss.GA] || 0;
+                    const wins = stats[Ss.WI] || 0;
+                    const winRate = games > 0 ? ((wins / games) * 100).toFixed(0) : "0";
+                    
+                    statText = ` - ${games} partidos, ${winRate}% victorias`;
+                }
+            } catch (e) {
+                console.error("Error obteniendo stats:", e);
+            }
+            
+            // Mostrar jugador con número para selección
     room.sendAnnouncement(
-        playerList,
-        player.id,
-        0xFFFFFF,
+                `${i + 1}. ${player.name}${statText}`,
+                captain.id,
+                teamColor,
         "normal"
     );
+        }
     
-    // Enviar instrucciones adicionales
+        // Mostrar instrucciones
     room.sendAnnouncement(
-        centerText("Escribe un número o 'top', 'random', 'bottom'"),
-        player.id,
-        teamColor || 0x00FF00,
+            centerText("Escribe el NÚMERO del jugador que quieres elegir"),
+            captain.id,
+            0xFFFFFF,
         "bold"
     );
+        
+        console.log("Mostrando lista de espectadores al capitán", captain.name);
+        return true;
+    } catch (error) {
+        console.error("Error en getSpecList:", error);
+        return false;
+    }
 }
 
 
@@ -10589,6 +10947,19 @@ function handleReinicioComando(player) {
         jugadorSolicitanteReinicio = player.id;
         equipoSolicitanteReinicio = player.team;
         room.sendAnnouncement(`${player.name} ha solicitado reiniciar el partido. Se necesitan dos confirmaciones del equipo contrario escribiendo !rr.`, null, 0xFFFF00, "bold", 2);
+        
+        // Crear timeout de 10 segundos para cancelar si no hay suficientes confirmaciones
+        timeoutReinicio = setTimeout(() => {
+            if (reinicioSolicitado) {
+                room.sendAnnouncement(`⚠️ La solicitud de reinicio de ${player.name} ha caducado por falta de confirmaciones.`, null, 0xFF9900, "bold", 2);
+                // Reiniciar variables
+                reinicioSolicitado = false;
+                jugadorSolicitanteReinicio = null;
+                equipoSolicitanteReinicio = null;
+                confirmacionesReinicio = [];
+            }
+        }, 10000);
+        
         return true;
     }
     
@@ -10601,6 +10972,9 @@ function handleReinicioComando(player) {
             
             // Si hay suficientes confirmaciones, reiniciar
             if (confirmacionesReinicio.length >= 2) {
+                // Cancelar el timeout porque ya tenemos suficientes confirmaciones
+                clearTimeout(timeoutReinicio);
+                
                 room.sendAnnouncement("🔄 El partido se reiniciará ahora.", null, 0x00FF00, "bold", 2);
                 room.stopGame();
                 room.startGame();
@@ -10627,7 +11001,7 @@ function handleReinicioComando(player) {
     }
     
     return false;
-    }
+}
 
 /* STATS FUNCTIONS */
 
@@ -10841,7 +11215,7 @@ function updateStats() {
                     k[1] = teamR[i].position.x;
                 }
             }
-            k[0] != -1 ? setGK(k[0], getGK(k[0]) + 1) : null;
+            k[0] != -1 ? setGK(k[0], getGK(k[0].team) + 1) : null;
             k = [-1, -Infinity];
             for (var i = 0; i < teamB.length; i++) {
                 if (teamB[i].position.x > k[1]) {
@@ -10849,7 +11223,7 @@ function updateStats() {
                     k[1] = teamB[i].position.x;
                 }
             }
-            k[0] != -1 ? setGK(k[0], getGK(k[0]) + 1) : null;
+            k[0] != -1 ? setGK(k[0], getGK(k[0].team) + 1) : null;
             findGK();
         }
     }
@@ -12778,6 +13152,7 @@ function updateStats() {
 
     /* PLAYER MOVEMENT */
 
+  // 3. Ahora reemplazamos tu onPlayerJoin completo
     room.onPlayerJoin = function(player) {
         console.log("---------------------------------------------------");
         console.log("[📢] Nick: " + player.name);
@@ -12939,14 +13314,20 @@ function updateStats() {
        setTimeout(() => {
         syncPlayerStats(player);
         
-        // Actualizamos el nombre con prefijo
+   // Con esto:
         setTimeout(() => {
+    try {
+        // Intentar actualizar nombre, pero no preocuparse si falla
+        if (typeof updatePlayerName === 'function') {
             updatePlayerName(player);
+        }
+    } catch (e) {
+        console.error("No se pudo actualizar el nombre:", e);
+    }
         }, 1000);
     }, 2000);
 
     }
-
 
 
     room.onPlayerTeamChange = function (changedPlayer, byPlayer) {
@@ -13159,150 +13540,150 @@ function updateStats() {
             }
         }
     
-    // Modificar esta parte en onPlayerChat para anunciar correctamente las selecciones
-// Modificar esta parte en onPlayerChat para que funcione correctamente con top, random y bottom
-// Modificar esta parte en onPlayerChat para anunciar correctamente las selecciones con mejor estética
-if (teamR.length != 0 && teamB.length != 0 && inChooseMode) {
-    if (player.id == teamR[0].id || player.id == teamB[0].id) {
-        const isRedCaptain = player.id == teamR[0].id && teamR.length <= teamB.length;
-        const isBlueCaptain = player.id == teamB[0].id && teamR.length > teamB.length;
-        
-        if (isRedCaptain || isBlueCaptain) {
-            const teamColor = isRedCaptain ? 0xFF3333 : 0x3333FF;
-            const teamEmoji = isRedCaptain ? "🔴" : "🔵";
-            const teamName = isRedCaptain ? "ROJO" : "AZUL";
-            
-            // Manejar comandos 'top', 'random', 'bottom'
-            if (['top', 'auto'].includes(message.toLowerCase())) {
-                if (teamS.length > 0) {
-                    const chosenPlayer = teamS[0];
-                    room.setPlayerTeam(chosenPlayer.id, isRedCaptain ? Team.RED : Team.BLUE);
-                    if (isRedCaptain) redCaptainChoice = 'top';
-                    else blueCaptainChoice = 'top';
-                    clearTimeout(timeOutCap);
+        // Modificar esta parte en onPlayerChat para anunciar correctamente las selecciones
+        // Modificar esta parte en onPlayerChat para que funcione correctamente con top, random y bottom
+        // Modificar esta parte en onPlayerChat para anunciar correctamente las selecciones con mejor estética
+        if (teamR.length != 0 && teamB.length != 0 && inChooseMode) {
+            if (player.id == teamR[0].id || player.id == teamB[0].id) {
+                const isRedCaptain = player.id == teamR[0].id && teamR.length <= teamB.length;
+                const isBlueCaptain = player.id == teamB[0].id && teamR.length > teamB.length;
+                
+                if (isRedCaptain || isBlueCaptain) {
+                    const teamColor = isRedCaptain ? 0xFF3333 : 0x3333FF;
+                    const teamEmoji = isRedCaptain ? "🔴" : "🔵";
+                    const teamName = isRedCaptain ? "ROJO" : "AZUL";
                     
-                    // Anuncio bonito para todos
-                    room.sendAnnouncement(
-                        centerText(`⭐ JUGADOR SELECCIONADO ⭐`),
-                        null,
-                        0xFFD700,
-                        "bold",
-                        2
-                    );
-                    room.sendAnnouncement(
-                        centerText(`${player.name} ${teamEmoji} eligió a ${chosenPlayer.name} (TOP)`),
-                        null,
-                        teamColor,
-                        "bold"
-                    );
-                    
-                    // Continuar la selección si es necesario
-                    setTimeout(() => {
-                        if (inChooseMode) choosePlayer();
-                    }, 1000);
-                }
-                return false;
-            } else if (['random', 'rand'].includes(message.toLowerCase())) {
-                if (teamS.length > 0) {
-                    const r = getRandomInt(teamS.length);
-                    const chosenPlayer = teamS[r];
-                    room.setPlayerTeam(chosenPlayer.id, isRedCaptain ? Team.RED : Team.BLUE);
-                    if (isRedCaptain) redCaptainChoice = 'random';
-                    else blueCaptainChoice = 'random';
-                    clearTimeout(timeOutCap);
-                    
-                    // Anuncio bonito para todos
-                    room.sendAnnouncement(
-                        centerText(`⭐ JUGADOR SELECCIONADO ⭐`),
-                        null,
-                        0xFFD700,
-                        "bold",
-                        2
-                    );
-                    room.sendAnnouncement(
-                        centerText(`${player.name} ${teamEmoji} eligió a ${chosenPlayer.name} (RANDOM)`),
-                        null,
-                        teamColor,
-                        "bold"
-                    );
-                    
-                    // Continuar la selección si es necesario
-                    setTimeout(() => {
-                        if (inChooseMode) choosePlayer();
-                    }, 1000);
-                }
-                return false;
-            } else if (['bottom', 'bot'].includes(message.toLowerCase())) {
-                if (teamS.length > 0) {
-                    const chosenPlayer = teamS[teamS.length - 1];
-                    room.setPlayerTeam(chosenPlayer.id, isRedCaptain ? Team.RED : Team.BLUE);
-                    if (isRedCaptain) redCaptainChoice = 'bottom';
-                    else blueCaptainChoice = 'bottom';
-                    clearTimeout(timeOutCap);
-                    
-                    // Anuncio bonito para todos
-                    room.sendAnnouncement(
-                        centerText(`⭐ JUGADOR SELECCIONADO ⭐`),
-                        null,
-                        0xFFD700,
-                        "bold",
-                        2
-                    );
-                    room.sendAnnouncement(
-                        centerText(`${player.name} ${teamEmoji} eligió a ${chosenPlayer.name} (BOTTOM)`),
-                        null,
-                        teamColor,
-                        "bold"
-                    );
-                    
-                    // Continuar la selección si es necesario
-                    setTimeout(() => {
-                        if (inChooseMode) choosePlayer();
-                    }, 1000);
-                }
-                return false;
-            } else if (!Number.isNaN(Number.parseInt(message))) {
-                const chosenNumber = Number.parseInt(message);
-                if (chosenNumber > teamS.length || chosenNumber < 1) {
-                    room.sendAnnouncement(
-                        centerText(`❌ ¡Número inválido! Debe estar entre 1 y ${teamS.length}`),
-                        player.id,
-                        0xFF0000,
-                        "bold",
-                        1
-                    );
-                    return false;
-                } else {
-                    const chosenIndex = chosenNumber - 1;
-                    const chosenPlayer = teamS[chosenIndex];
-                    room.setPlayerTeam(chosenPlayer.id, isRedCaptain ? Team.RED : Team.BLUE);
-                    
-                    // Anuncio bonito para todos
-                    room.sendAnnouncement(
-                        centerText(`⭐ JUGADOR SELECCIONADO ⭐`),
-                        null,
-                        0xFFD700,
-                        "bold",
-                        2
-                    );
-                    room.sendAnnouncement(
-                        centerText(`${player.name} ${teamEmoji} eligió a ${chosenPlayer.name} (#${chosenNumber})`),
-                        null,
-                        teamColor,
-                        "bold"
-                    );
-                    
-                    // Continuar la selección si es necesario
-                    setTimeout(() => {
-                        if (inChooseMode) choosePlayer();
-                    }, 1000);
-                    return false;
+                    // Manejar comandos 'top', 'random', 'bottom'
+                    if (['top', 'auto'].includes(message.toLowerCase())) {
+                        if (teamS.length > 0) {
+                            const chosenPlayer = teamS[0];
+                            room.setPlayerTeam(chosenPlayer.id, isRedCaptain ? Team.RED : Team.BLUE);
+                            if (isRedCaptain) redCaptainChoice = 'top';
+                            else blueCaptainChoice = 'top';
+                            clearTimeout(timeOutCap);
+                            
+                            // Anuncio bonito para todos
+                            room.sendAnnouncement(
+                                centerText(`⭐ JUGADOR SELECCIONADO ⭐`),
+                                null,
+                                0xFFD700,
+                                "bold",
+                                2
+                            );
+                            room.sendAnnouncement(
+                                centerText(`${player.name} ${teamEmoji} eligió a ${chosenPlayer.name} (TOP)`),
+                                null,
+                                teamColor,
+                                "bold"
+                            );
+                            
+                            // Continuar la selección si es necesario
+                            setTimeout(() => {
+                                if (inChooseMode) choosePlayer();
+                            }, 1000);
+                        }
+                        return false;
+                    } else if (['random', 'rand'].includes(message.toLowerCase())) {
+                        if (teamS.length > 0) {
+                            const r = getRandomInt(teamS.length);
+                            const chosenPlayer = teamS[r];
+                            room.setPlayerTeam(chosenPlayer.id, isRedCaptain ? Team.RED : Team.BLUE);
+                            if (isRedCaptain) redCaptainChoice = 'random';
+                            else blueCaptainChoice = 'random';
+                            clearTimeout(timeOutCap);
+                            
+                            // Anuncio bonito para todos
+                            room.sendAnnouncement(
+                                centerText(`⭐ JUGADOR SELECCIONADO ⭐`),
+                                null,
+                                0xFFD700,
+                                "bold",
+                                2
+                            );
+                            room.sendAnnouncement(
+                                centerText(`${player.name} ${teamEmoji} eligió a ${chosenPlayer.name} (RANDOM)`),
+                                null,
+                                teamColor,
+                                "bold"
+                            );
+                            
+                            // Continuar la selección si es necesario
+                            setTimeout(() => {
+                                if (inChooseMode) choosePlayer();
+                            }, 1000);
+                        }
+                        return false;
+                    } else if (['bottom', 'bot'].includes(message.toLowerCase())) {
+                        if (teamS.length > 0) {
+                            const chosenPlayer = teamS[teamS.length - 1];
+                            room.setPlayerTeam(chosenPlayer.id, isRedCaptain ? Team.RED : Team.BLUE);
+                            if (isRedCaptain) redCaptainChoice = 'bottom';
+                            else blueCaptainChoice = 'bottom';
+                            clearTimeout(timeOutCap);
+                            
+                            // Anuncio bonito para todos
+                            room.sendAnnouncement(
+                                centerText(`⭐ JUGADOR SELECCIONADO ⭐`),
+                                null,
+                                0xFFD700,
+                                "bold",
+                                2
+                            );
+                            room.sendAnnouncement(
+                                centerText(`${player.name} ${teamEmoji} eligió a ${chosenPlayer.name} (BOTTOM)`),
+                                null,
+                                teamColor,
+                                "bold"
+                            );
+                            
+                            // Continuar la selección si es necesario
+                            setTimeout(() => {
+                                if (inChooseMode) choosePlayer();
+                            }, 1000);
+                        }
+                        return false;
+                    } else if (!Number.isNaN(Number.parseInt(message))) {
+                        const chosenNumber = Number.parseInt(message);
+                        if (chosenNumber > teamS.length || chosenNumber < 1) {
+                            room.sendAnnouncement(
+                                centerText(`❌ ¡Número inválido! Debe estar entre 1 y ${teamS.length}`),
+                                player.id,
+                                0xFF0000,
+                                "bold",
+                                1
+                            );
+                            return false;
+                        } else {
+                            const chosenIndex = chosenNumber - 1;
+                            const chosenPlayer = teamS[chosenIndex];
+                            room.setPlayerTeam(chosenPlayer.id, isRedCaptain ? Team.RED : Team.BLUE);
+                            
+                            // Anuncio bonito para todos
+                            room.sendAnnouncement(
+                                centerText(`⭐ JUGADOR SELECCIONADO ⭐`),
+                                null,
+                                0xFFD700,
+                                "bold",
+                                2
+                            );
+                            room.sendAnnouncement(
+                                centerText(`${player.name} ${teamEmoji} eligió a ${chosenPlayer.name} (#${chosenNumber})`),
+                                null,
+                                teamColor,
+                                "bold"
+                            );
+                            
+                            // Continuar la selección si es necesario
+                            setTimeout(() => {
+                                if (inChooseMode) choosePlayer();
+                            }, 1000);
+                            return false;
+                        }
+                    }
                 }
             }
         }
-    }
-}
-
+    
         // 2. COMANDOS (empiezan con !)
         if (message.startsWith("!")) {
             const args = message.substring(1).split(" ");
@@ -13329,14 +13710,13 @@ if (teamR.length != 0 && teamB.length != 0 && inChooseMode) {
                 return false;
             }
             
-    
             // Comandos AFK
             if (command === "afk") {
                 if (players.length != 1 && player.team != Team.SPECTATORS) {
                     if (player.team == Team.RED && streak > 0 && room.getScores() == null) {
                         room.setPlayerTeam(player.id, Team.SPECTATORS);
                     } else {
-                        room.sendAnnouncement("You can't go AFK while playing!", player.id, 0xFF7B08);
+                        room.sendAnnouncement("No podés ir AFK mientras estás jugando!", player.id, 0xFF7B08);
                         return false;
                     }
                 } else if (players.length == 1 && !getAFK(player)) {
@@ -13348,48 +13728,50 @@ if (teamR.length != 0 && teamB.length != 0 && inChooseMode) {
                 getAFK(player) ? updateRoleOnPlayerOut() : updateRoleOnPlayerIn();
                 return false;
             }
-          // Comandos de camisetas
-          switch(command) {
-            case 'uefa': UEFAFun(player); return false;
-            case 'conmebol': CONMEBOLFun(player); return false;
-            case 'concacaf': CONCACAFFun(player); return false;
-            case 'paises': PaisesFun(player); return false;
-            case 'fantasmas': FantasmasFun(player); return false;
-            case 'amateurs': EquiposAmateursFun(player); return false;
-            case 'superheroes': SuperHeroesFun(player); return false;
-            case 'primera': SuperligaFun(player); return false;
-            case 'ascenso': AscensoFun(player); return false;
-            case 'brasileirao': BrasilLeagueFun(player); return false;
-            case 'premierleague': PremierLeagueFun(player); return false;
-            case 'bundesliga': BundesligaFun(player); return false;
-            case 'seriea': SerieATIMFun(player); return false;
-            case 'serieb': SerieBItaliaFun(player); return false;
-            case 'laliga': LaLigaFun(player); return false;
-            case 'ligue1': Ligue1Fun(player); return false;
-            case 'eredivisie': EredivisieFun(player); return false;
-            case 'primeiraliga': PrimeiraLigaFun(player); return false;
-            case 'superlig': SuperLigFun(player); return false;
-            case 'campeonatoruso': CampeonatoRusoFun(player); return false;
-            case 'premierucrania': PremierUcranianaFun(player); return false;
-            case 'superligasuiza': RaiffeisenSuperLeagueFun(player); return false;
-            case 'ligamx': LigaMXFun(player); return false;
-            case 'mls': MLSFun(player); return false;
-            case 'campeonatouruguayo': LigaUruguayaFun(player); return false;
-            case 'ligaaguila': LigaAguilaFun(player); return false;
-            case 'ligaparaguaya': LigaParaguayaFun(player); return false;
-            case 'ligapro': LigaProFun(player); return false;
-            case 'liga1peru': Liga1PeruFun(player); return false;
-            case 'campeonatochileno': CampeonatoChilenoFun(player); return false;
-            case 'ligaboliviana': LigaBolivianaFun(player); return false;
-            case 'ligavenezolana': LigaVenezolanaFun(player); return false;
-            case 'esports': EquiposEsportsFun(player); return false;
-        }
-
-        // Comando !camisetas
-        if (command === 'camisetas') {
-            CamisetasFun(player);
-            return false;
-        }
+    
+            // Comandos de camisetas
+            switch(command) {
+                case 'uefa': UEFAFun(player); return false;
+                case 'conmebol': CONMEBOLFun(player); return false;
+                case 'concacaf': CONCACAFFun(player); return false;
+                case 'paises': PaisesFun(player); return false;
+                case 'fantasmas': FantasmasFun(player); return false;
+                case 'amateurs': EquiposAmateursFun(player); return false;
+                case 'superheroes': SuperHeroesFun(player); return false;
+                case 'primera': SuperligaFun(player); return false;
+                case 'ascenso': AscensoFun(player); return false;
+                case 'brasileirao': BrasilLeagueFun(player); return false;
+                case 'premierleague': PremierLeagueFun(player); return false;
+                case 'bundesliga': BundesligaFun(player); return false;
+                case 'seriea': SerieATIMFun(player); return false;
+                case 'serieb': SerieBItaliaFun(player); return false;
+                case 'laliga': LaLigaFun(player); return false;
+                case 'ligue1': Ligue1Fun(player); return false;
+                case 'eredivisie': EredivisieFun(player); return false;
+                case 'primeiraliga': PrimeiraLigaFun(player); return false;
+                case 'superlig': SuperLigFun(player); return false;
+                case 'campeonatoruso': CampeonatoRusoFun(player); return false;
+                case 'premierucrania': PremierUcranianaFun(player); return false;
+                case 'superligasuiza': RaiffeisenSuperLeagueFun(player); return false;
+                case 'ligamx': LigaMXFun(player); return false;
+                case 'mls': MLSFun(player); return false;
+                case 'campeonatouruguayo': LigaUruguayaFun(player); return false;
+                case 'ligaaguila': LigaAguilaFun(player); return false;
+                case 'ligaparaguaya': LigaParaguayaFun(player); return false;
+                case 'ligapro': LigaProFun(player); return false;
+                case 'liga1peru': Liga1PeruFun(player); return false;
+                case 'campeonatochileno': CampeonatoChilenoFun(player); return false;
+                case 'ligaboliviana': LigaBolivianaFun(player); return false;
+                case 'ligavenezolana': LigaVenezolanaFun(player); return false;
+                case 'esports': EquiposEsportsFun(player); return false;
+            }
+    
+            // Comando !camisetas
+            if (command === 'camisetas') {
+                CamisetasFun(player);
+                return false;
+            }
+    
             // Sistema de abreviaturas para camisetas
             const match = message.toLowerCase().match(/^([a-z]+)(\d+)$/);
             if (match) {
@@ -13417,51 +13799,71 @@ if (teamR.length != 0 && teamB.length != 0 && inChooseMode) {
                 return commands[command](player, args);
             }
         }
-
-
-    // 3. Ahora mensajes rápidos, DESPUÉS de haber verificado el modo de selección
-    if (/^\d+$/.test(message) || /^!\d+$/.test(message)) {
-        // Extraer el número del mensaje
-        const quickMessageNumber = message.replace("!", "");
-        
-        // Llamar a la función de mensajes rápidos
-        handleQuickMessage(player, quickMessageNumber);
-        
-        // Retornar false para que el mensaje original no se muestre
-        return false;
-    }
-
     
-           // Verificar si el mensaje tiene el formato "equipo+número"
-    const matchEquipo = message.match(/^([a-z]+)([1-3])$/i);
+        // 3. Ahora mensajes rápidos, DESPUÉS de haber verificado el modo de selección
+        if (/^\d+$/.test(message) || /^!\d+$/.test(message)) {
+            // Extraer el número del mensaje
+            const quickMessageNumber = message.replace("!", "");
+            
+            // Llamar a la función de mensajes rápidos
+            handleQuickMessage(player, quickMessageNumber);
+            
+            // Retornar false para que el mensaje original no se muestre
+            return false;
+        }
     
-    if (matchEquipo) {
-        // Si tiene el formato correcto, extraer el equipo y la variante
-        const equipo = matchEquipo[1].toLowerCase();
-        const variante = matchEquipo[2];
+        // Verificar si el mensaje tiene el formato "equipo+número"
+        const matchEquipo = message.match(/^([a-z]+)([1-3])$/i);
         
-        console.log(`Detectado comando de camiseta: ${equipo}${variante}`);
-        aplicarCamisetaSimple(player, equipo, variante);
+        if (matchEquipo) {
+            // Si tiene el formato correcto, extraer el equipo y la variante
+            const equipo = matchEquipo[1].toLowerCase();
+            const variante = matchEquipo[2];
+            
+            console.log(`Detectado comando de camiseta: ${equipo}${variante}`);
+            aplicarCamisetaSimple(player, equipo, variante);
+            
+            // Retornar false para que el mensaje no se muestre en el chat
+            return false;
+        }
         
-        // Retornar false para que el mensaje no se muestre en el chat
-        return false;
-    }
-    
-    // Verificar si es una clave completa con formato "equipo/variante/color"
-    if (message.includes('/') && (message.includes('/red') || message.includes('/blue'))) {
-        aplicarCamisetaPorClave(player, message);
-        return false;
-    }
-    
-// Chat de equipo (mensaje empieza con "t ")
+        // Verificar si es una clave completa con formato "equipo/variante/color"
+        if (message.includes('/') && (message.includes('/red') || message.includes('/blue'))) {
+            aplicarCamisetaPorClave(player, message);
+            return false;
+        }
+        
+      // Chat de equipo (mensaje empieza con "t ")
 if (message.length > 1 && message[0].toLowerCase() == 't' && message[1] == ' ') {
-    let { prefix, chatColor } = getChatFormat(player);
+    // Obtenemos el rol y configuramos prefijo base
+    const role = getRole(player);
+    let prefix = "";
+    let chatColor = 0xFFFFFF;
     
-    // Verificar si la función getChatFormat existe y devuelve los valores esperados
-    if (!prefix) prefix = "";
-    if (!chatColor) chatColor = 0xFFFFFF;
+    // Obtener prefijo de ELO igual que en el chat normal
+    const eloPrefix = getEloPrefix(player);
     
-    console.log(`Chat de equipo: player=${player.name}, team=${player.team}, message=${message}`);
+    // Configurar prefijo según rol
+    switch (role) {
+        case Role.MASTER:
+        case Role.OWNER:
+            prefix = "👑 ";
+            break;
+        case Role.CO_OWNER:
+            prefix = "⭐ ";
+            break;
+        case Role.SUPERADMIN:
+            prefix = "🔰 ";
+            break;
+        case Role.ADMIN_PERM:
+            prefix = "🛡️ ";
+            break;
+        default:
+            prefix = ""; 
+    }
+    
+    // Combinamos prefijos: primero ELO, luego rol
+    const finalPrefix = eloPrefix + prefix;
     
     // Forzar colores para los equipos
     if (player.team == Team.RED) {
@@ -13472,7 +13874,7 @@ if (message.length > 1 && message[0].toLowerCase() == 't' && message[1] == ' ') 
                 const isSpy = element.team !== Team.RED && typeof spyingAdmins !== 'undefined' && spyingAdmins.has(element.id);
                 const spyPrefix = isSpy ? "[SPY-RED] " : "";
                 room.sendAnnouncement(
-                    `${spyPrefix}🔴 ${prefix}${player.name}: ${message.substr(2)}`, 
+                    `${spyPrefix}🔴 ${finalPrefix}${player.name}: ${message.substr(2)}`, 
                     element.id, 
                     isSpy ? 0xFF4C4C : chatColor, 
                     "bold", 
@@ -13490,7 +13892,7 @@ if (message.length > 1 && message[0].toLowerCase() == 't' && message[1] == ' ') 
                 const isSpy = element.team !== Team.BLUE && typeof spyingAdmins !== 'undefined' && spyingAdmins.has(element.id);
                 const spyPrefix = isSpy ? "[SPY-BLUE] " : "";
                 room.sendAnnouncement(
-                    `${spyPrefix}🔵 ${prefix}${player.name}: ${message.substr(2)}`, 
+                    `${spyPrefix}🔵 ${finalPrefix}${player.name}: ${message.substr(2)}`, 
                     element.id, 
                     isSpy ? 0xFF4C4C : chatColor, 
                     "bold", 
@@ -13503,231 +13905,237 @@ if (message.length > 1 && message[0].toLowerCase() == 't' && message[1] == ' ') 
     else if (player.team == Team.SPECTATORS) {
         chatColor = 0xAAAAAA; // Gris para espectadores
         
-        // Agregar log para depurar
-        console.log(`Enviando mensaje de espectador: ${message.substr(2)}`);
-        console.log(`Número de espectadores: ${room.getPlayerList().filter(p => p.team === Team.SPECTATORS).length}`);
-        
         room.getPlayerList().forEach((element) => {
             if (element.team == Team.SPECTATORS || (typeof spyingAdmins !== 'undefined' && spyingAdmins.has(element.id))) {
                 const isSpy = element.team !== Team.SPECTATORS && typeof spyingAdmins !== 'undefined' && spyingAdmins.has(element.id);
                 const spyPrefix = isSpy ? "[SPY-SPEC] " : "";
                 room.sendAnnouncement(
-                    `${spyPrefix}⚪ ${prefix}${player.name}: ${message.substr(2)}`, 
+                    `${spyPrefix}⚪ ${finalPrefix}${player.name}: ${message.substr(2)}`, 
                     element.id, 
                     isSpy ? 0xFF4C4C : chatColor, 
                     "bold", 
                     0
                 );
-                
-                // Log para confirmar que se envió el mensaje
-                console.log(`Mensaje enviado a ${element.name} (${element.id})`);
             }
         });
         return false;
     }
 }
-
-
-
-    // 5. Chat de admin (ac o !ac)
-    if (message.startsWith('ac ') || message.startsWith('!ac ')) {
-        const role = getRole(player);
-        if (!role) return false;
-
-        if (role >= Role.ADMIN_PERM) {
-            const adminMessage = message.substr(message.indexOf(' ') + 1);
-            room.getPlayerList().forEach((p) => {
-                if (!p) return;
-                
-                const pRole = getRole(p);
-                if (!pRole) return;
-
-                if (pRole >= Role.ADMIN_PERM) {
-                    let prefix = "";
-                    switch (role) {
-                        case Role.MASTER:
-                        case Role.OWNER:
-                            prefix = "👑 ";
-                            break;
-                        case Role.CO_OWNER:
-                            prefix = "⭐ ";
-                            break;
-                        case Role.SUPERADMIN:
-                            prefix = "🔰 ";
-                            break;
-                        case Role.ADMIN_PERM:
-                            prefix = "🛡️ ";
-                            break;
+    
+        // 5. Chat de admin (ac o !ac)
+        if (message.startsWith('ac ') || message.startsWith('!ac ')) {
+            const role = getRole(player);
+            if (!role) return false;
+    
+            if (role >= Role.ADMIN_PERM) {
+                const adminMessage = message.substr(message.indexOf(' ') + 1);
+                room.getPlayerList().forEach((p) => {
+                    if (!p) return;
+                    
+                    const pRole = getRole(p);
+                    if (!pRole) return;
+    
+                    if (pRole >= Role.ADMIN_PERM) {
+                        let prefix = "";
+                        switch (role) {
+                            case Role.MASTER:
+                            case Role.OWNER:
+                                prefix = "👑 ";
+                                break;
+                            case Role.CO_OWNER:
+                                prefix = "⭐ ";
+                                break;
+                            case Role.SUPERADMIN:
+                                prefix = "🔰 ";
+                                break;
+                            case Role.ADMIN_PERM:
+                                prefix = "🛡️ ";
+                                break;
+                        }
+                        room.sendAnnouncement(`[CHAT ADMIN] ${prefix}${player.name}: ${adminMessage}`, p.id, 0xb201ff, "bold", 2);
                     }
-                    room.sendAnnouncement(`[CHAT ADMIN] ${prefix}${player.name}: ${adminMessage}`, p.id, 0xb201ff, "bold", 2);
+                });
+                return false;
+            } else {
+                room.sendAnnouncement("❌ No tenés permisos para usar el chat de admins.", player.id, 0xFF0000);
+                return false;
+            }
+        }
+    
+        // 6. Mensajes privados (@@nombre o @@#ID)
+        if (message.startsWith('@@')) {
+            const msgParts = message.substring(2).split(' ');
+            if (msgParts.length < 2) {
+                room.sendAnnouncement("❌ Uso: @@nombre mensaje o @@#ID mensaje", player.id, 0xFF0000);
+                return false;
+            }
+    
+            let targetPlayer = null;
+            const targetMsg = msgParts.slice(1).join(' ');
+    
+            if (msgParts[0].startsWith('#')) {
+                const targetId = parseInt(msgParts[0].substring(1));
+                targetPlayer = room.getPlayer(targetId);
+            } else {
+                targetPlayer = findClosestPlayer(msgParts[0], player.id);
+            }
+    
+            if (!targetPlayer) {
+                room.sendAnnouncement("❌ Jugador no encontrado. Asegurate de escribir bien el nombre o usar #ID", player.id, 0xFF0000);
+                return false;
+            }
+    
+            if (targetPlayer.id === player.id) {
+                room.sendAnnouncement("❌ No podés enviarte mensajes a vos mismo", player.id, 0xFF0000);
+                return false;
+            }
+    
+            const mpColor = 0x00FFFF;
+    
+            room.sendAnnouncement(`[MP➡️] Para ➡️ ${targetPlayer.name}: ${targetMsg}`, 
+                player.id, mpColor, "bold", 1);
+    
+            room.sendAnnouncement(`[MP⬅️] ${player.name} ➡️ Dice: ${targetMsg}`, 
+                targetPlayer.id, mpColor, "bold", 1);
+    
+            room.getPlayerList().forEach((p) => {
+                if (spyingAdmins.has(p.id) && p.id !== player.id && p.id !== targetPlayer.id) {
+                    room.sendAnnouncement(`[SPY-MP] ${player.name} ➡️ ${targetPlayer.name}: ${targetMsg}`, 
+                        p.id, 0xFF4C4C, "bold", 1);
                 }
             });
-            return false;
-        } else {
-            room.sendAnnouncement("❌ No tenés permisos para usar el chat de admins.", player.id, 0xFF0000);
+    
             return false;
         }
-    }
-
-
-
-    // 6. Mensajes privados (@@nombre o @@#ID)
-    if (message.startsWith('@@')) {
-        const msgParts = message.substring(2).split(' ');
-        if (msgParts.length < 2) {
-            room.sendAnnouncement("❌ Uso: @@nombre mensaje o @@#ID mensaje", player.id, 0xFF0000);
-            return false;
+    
+        // Comando para reiniciar partido
+        if (message === "!rr") {
+            return handleReinicioComando(player);
         }
 
-        let targetPlayer = null;
-        const targetMsg = msgParts.slice(1).join(' ');
-
-        if (msgParts[0].startsWith('#')) {
-            const targetId = parseInt(msgParts[0].substring(1));
-            targetPlayer = room.getPlayer(targetId);
-        } else {
-            targetPlayer = findClosestPlayer(msgParts[0], player.id);
-        }
-
-        if (!targetPlayer) {
-            room.sendAnnouncement("❌ Jugador no encontrado. Asegurate de escribir bien el nombre o usar #ID", player.id, 0xFF0000);
-            return false;
-        }
-
-        if (targetPlayer.id === player.id) {
-            room.sendAnnouncement("❌ No podés enviarte mensajes a vos mismo", player.id, 0xFF0000);
-            return false;
-        }
-
-        const mpColor = 0x00FFFF;
-
-        room.sendAnnouncement(`[MP➡️] Para ➡️ ${targetPlayer.name}: ${targetMsg}`, 
-            player.id, mpColor, "bold", 1);
-
-        room.sendAnnouncement(`[MP⬅️] ${player.name} ➡️ Dice: ${targetMsg}`, 
-            targetPlayer.id, mpColor, "bold", 1);
-
-        room.getPlayerList().forEach((p) => {
-            if (spyingAdmins.has(p.id) && p.id !== player.id && p.id !== targetPlayer.id) {
-                room.sendAnnouncement(`[SPY-MP] ${player.name} ➡️ ${targetPlayer.name}: ${targetMsg}`, 
-                    p.id, 0xFF4C4C, "bold", 1);
-            }
-        });
-
+   // Comando para solicitar pausa
+if (message.toLowerCase() === "p") {
+    // Si ya hay una pausa activa, ignorar
+    if (pausaActiva) {
+        room.sendAnnouncement(`[❌] Ya hay una pausa activa en este momento.`, player.id, 0xFF0000, "bold", 2);
         return false;
     }
 
-
-    // Comando para solicitar pausa
-    if (message.toLowerCase() === "p") {
-        // Si ya hay una pausa activa, ignorar
-        if (pausaActiva) {
-            room.sendAnnouncement(`[❌] Ya hay una pausa activa en este momento.`, player.id, 0xFF0000, "bold", 2);
-            return false;
-        }
-
-        // Si no hay una solicitud de pausa pendiente, crear una nueva
-        if (!pausaSolicitada) {
-            pausaSolicitada = true;
-            jugadorSolicitante = player.id;
-            room.sendAnnouncement(`⏸️ ${player.name} ha solicitado una pausa. Otro jugador debe confirmar escribiendo "p".`, null, 0xFFFF00, "bold", 2);
-            return false;
-        } 
-        // Si hay una solicitud pendiente y este es otro jugador, confirmar la pausa
-        else if (player.id !== jugadorSolicitante) {
-            // Establecer pausa activa para evitar solicitudes múltiples
-            pausaActiva = true;
-            
-            // Enviar mensaje de confirmación
-            room.sendAnnouncement(`✅ ${player.name} ha confirmado la pausa. El juego se detendrá por 20 segundos.`, null, 0x00FF00, "bold", 2);
-            
-            // Pausar el juego
-            room.pauseGame(true);
-            
-            // Programar la reanudación del juego después de 20 segundos
-            setTimeout(() => {
-                // Enviar aviso 5 segundos antes de reanudar
-                room.sendAnnouncement("⚠️ El partido se reanudará en 5 segundos.", null, 0xFFFF00, "bold", 2);
-                
-                // Programar la reanudación final
-                setTimeout(() => {
-                    room.sendAnnouncement("▶️ La pausa ha terminado. ¡El partido se reanuda!", null, 0x00FF00, "bold", 2);
-                    room.pauseGame(false);
-                    
-                    // Reiniciar variables de pausa
-                    pausaSolicitada = false;
-                    jugadorSolicitante = null;
-                    pausaActiva = false;
-                }, 5000);
-            }, 15000); // 15 + 5 = 20 segundos en total
-            
-            return false;
-        } 
-        // Si el mismo jugador intenta confirmar su propia pausa
-        else {
-            room.sendAnnouncement(`[❌] No puedes confirmar tu propia solicitud de pausa. Otro jugador debe confirmarla.`, player.id, 0xFF0000, "bold", 2);
-            return false;
-        }
-    }
-    
-  // CHAT NORMAL CON FORMATO DE ELO
-  try {
-    const role = getRole(player);
-    let prefix = "";
-    let chatColor = 0xFFFFFF; // Color por defecto
-    
-    // Obtener prefijo de ELO para todos los jugadores
-    const eloPrefix = getEloPrefix(player);
-    
-    // Configurar prefijo y color según rol
-    switch (role) {
-        case Role.MASTER:
-        case Role.OWNER:
-            prefix = "👑 ";
-            chatColor = 0xFFD700;
-            break;
-        case Role.CO_OWNER:
-            prefix = "⭐ ";
-            chatColor = 0x00FF00;
-            break;
-        case Role.SUPERADMIN:
-            prefix = "🔰 ";
-            chatColor = 0x00FF00;
-            break;
-        case Role.ADMIN_PERM:
-            prefix = "🛡️ ";
-            chatColor = 0x00FF00;
-            break;
-        default:
-            prefix = ""; // Quitamos el 🆕 para jugadores normales
-            // Para jugadores normales, color de equipo
-            if (player.team === 1) {
-                chatColor = 0xE56E56; // Rojo
-            } else if (player.team === 2) {
-                chatColor = 0x5689E5; // Azul
-            } else {
-                chatColor = 0xFFFFFF; // Blanco para espectadores
+    // Si no hay una solicitud de pausa pendiente, crear una nueva
+    if (!pausaSolicitada) {
+        pausaSolicitada = true;
+        jugadorSolicitante = player.id;
+        room.sendAnnouncement(`⏸️ ${player.name} ha solicitado una pausa. Otro jugador debe confirmar escribiendo "p".`, null, 0xFFFF00, "bold", 2);
+        
+        // Crear timeout de 10 segundos para cancelar si no hay confirmación
+        timeoutPausa = setTimeout(() => {
+            if (pausaSolicitada && !pausaActiva) {
+                pausaSolicitada = false;
+                jugadorSolicitante = null;
+                room.sendAnnouncement(`⚠️ La solicitud de pausa de ${player.name} ha caducado por falta de confirmación.`, null, 0xFF9900, "bold", 2);
             }
+        }, 10000);
+        
+        return false;
+    } 
+    // Si hay una solicitud pendiente y este es otro jugador, confirmar la pausa
+    else if (player.id !== jugadorSolicitante) {
+        // Establecer pausa activa para evitar solicitudes múltiples
+        pausaActiva = true;
+        
+        // Cancelar el timeout de expiración
+        clearTimeout(timeoutPausa);
+        
+        // Enviar mensaje de confirmación
+        room.sendAnnouncement(`✅ ${player.name} ha confirmado la pausa. El juego se detendrá por 20 segundos.`, null, 0x00FF00, "bold", 2);
+        
+        // Pausar el juego
+        room.pauseGame(true);
+        
+        // Programar la reanudación del juego después de 20 segundos
+        setTimeout(() => {
+            // Enviar aviso 5 segundos antes de reanudar
+            room.sendAnnouncement("⚠️ El partido se reanudará en 5 segundos.", null, 0xFFFF00, "bold", 2);
+            
+            // Programar la reanudación final
+            setTimeout(() => {
+                room.sendAnnouncement("▶️ La pausa ha terminado. ¡El partido se reanuda!", null, 0x00FF00, "bold", 2);
+                room.pauseGame(false);
+                
+                // Reiniciar variables de pausa
+                pausaSolicitada = false;
+                jugadorSolicitante = null;
+                pausaActiva = false;
+            }, 5000);
+        }, 15000); // 15 + 5 = 20 segundos en total
+        
+        return false;
+    } 
+    // Si el mismo jugador intenta confirmar su propia pausa
+    else {
+        room.sendAnnouncement(`[❌] No puedes confirmar tu propia solicitud de pausa. Otro jugador debe confirmarla.`, player.id, 0xFF0000, "bold", 2);
+        return false;
     }
-    
-    // Combinamos: primero ELO, luego prefijo de rol (si aplica)
-    const finalPrefix = eloPrefix + prefix;
-    
-    // Crear el mensaje con formato
-    room.sendAnnouncement(
-        `${finalPrefix}${player.name}: ${message}`,
-        null, 
-        chatColor, 
-        player.admin ? "bold" : "normal"
-    );
-    
-    // Cancelar el mensaje original
-    return false;
-} catch (err) {
-    console.error("Error en onPlayerChat:", err);
-    return true; // En caso de error, mostrar mensaje original
 }
-};
+        
+        // CHAT NORMAL CON FORMATO DE ELO
+        try {
+            const role = getRole(player);
+            let prefix = "";
+            let chatColor = 0xFFFFFF; // Color por defecto
+            
+            // Obtener prefijo de ELO para todos los jugadores
+            const eloPrefix = getEloPrefix(player);
+            
+            // Configurar prefijo y color según rol
+            switch (role) {
+                case Role.MASTER:
+                case Role.OWNER:
+                    prefix = "👑 ";
+                    chatColor = 0xFFD700;
+                    break;
+                case Role.CO_OWNER:
+                    prefix = "⭐ ";
+                    chatColor = 0x00FF00;
+                    break;
+                case Role.SUPERADMIN:
+                    prefix = "🔰 ";
+                    chatColor = 0x00FF00;
+                    break;
+                case Role.ADMIN_PERM:
+                    prefix = "🛡️ ";
+                    chatColor = 0x00FF00;
+                    break;
+                default:
+                    prefix = ""; // Quitamos el 🆕 para jugadores normales
+                    // Para jugadores normales, color de equipo
+                    if (player.team === 1) {
+                        chatColor = 0xE56E56; // Rojo
+                    } else if (player.team === 2) {
+                        chatColor = 0x5689E5; // Azul
+                    } else {
+                        chatColor = 0xFFFFFF; // Blanco para espectadores
+                    }
+            }
+            
+            // Combinamos: primero ELO, luego prefijo de rol (si aplica)
+            const finalPrefix = eloPrefix + prefix;
+            
+            // Crear el mensaje con formato
+            room.sendAnnouncement(
+                `${finalPrefix}${player.name}: ${message}`,
+                null, 
+                chatColor, 
+                player.admin ? "bold" : "normal"
+            );
+            
+            // Cancelar el mensaje original
+            return false;
+        } catch (err) {
+            console.error("Error en onPlayerChat:", err);
+            return true; // En caso de error, mostrar mensaje original
+        }
+    };
     // Función para manejar el login de admins
     room.onCommand_loginadm = function(player, password) {
         if (!password) {
