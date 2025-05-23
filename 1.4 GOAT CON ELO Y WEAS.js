@@ -11520,6 +11520,72 @@ function updateStats() {
     // Definir commands antes de los eventos
     const commands = {
 
+'nick': (player, args) => {
+    // Verificar que haya un nuevo nombre
+    if (!args[0]) {
+        room.sendAnnouncement("❌ Uso: !nick <nuevo_nombre>", player.id, 0xFF0000);
+        return false;
+    }
+    
+    // Obtener el auth del jugador
+    const auth = getAuth(player);
+    if (!auth) {
+        room.sendAnnouncement("❌ No se detectó tu auth. Reconectate a la sala.", player.id, 0xFF0000);
+        return false;
+    }
+    
+    // Verificar que el jugador esté registrado
+    const url = `${FIREBASE_URL}/players/${auth}.json?auth=${FIREBASE_API_KEY}`;
+    fetch(url)
+    .then(response => response.json())
+    .then(userData => {
+        if (!userData) {
+            room.sendAnnouncement("❌ No estás registrado. Registrate primero con !register", player.id, 0xFF0000);
+            return;
+        }
+        
+        // Armar el nuevo nombre (por si tiene espacios)
+        const newNickname = args.join(" ");
+        
+        // Validar el nuevo nombre
+        if (newNickname.length < 2 || newNickname.length > 25) {
+            room.sendAnnouncement("❌ El nombre debe tener entre 2 y 25 caracteres.", player.id, 0xFF0000);
+            return;
+        }
+        
+        // Guardar el nombre anterior para mostrarlo
+        const oldNickname = userData.name || player.name;
+        
+        // Actualizar el nombre en la base de datos
+        userData.name = newNickname;
+        
+        fetch(url, {
+            method: 'PUT',
+            body: JSON.stringify(userData)
+        })
+        .then(() => {
+            // Anunciar el cambio exitoso
+            room.sendAnnouncement(`✅ Tu nombre ha sido actualizado: ${oldNickname} → ${newNickname}`, player.id, 0x00FF00, "bold");
+            room.sendAnnouncement(`📝 El cambio se reflejará en los rankings y estadísticas. ¡Los datos se han preservado!`, player.id, 0x00FF00);
+            
+            // Opcional: actualizar el nombre local si tenemos una función para eso
+            if (typeof updatePlayerName === 'function') {
+                updatePlayerName(player);
+            }
+        })
+        .catch(error => {
+            console.error("Error actualizando nickname:", error);
+            room.sendAnnouncement("❌ Ocurrió un error al actualizar tu nombre.", player.id, 0xFF0000);
+        });
+    })
+    .catch(error => {
+        console.error("Error verificando jugador:", error);
+        room.sendAnnouncement("❌ Error al verificar tu cuenta.", player.id, 0xFF0000);
+    });
+    
+    return false;
+},
+
     // ... otros comandos ...
 'slow': (player, args) => {
     // Verificar permisos
