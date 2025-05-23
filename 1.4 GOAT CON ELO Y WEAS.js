@@ -2,7 +2,7 @@
 const roomName = "🐐 𝐆𝐎𝐀𝐓 𝐋𝐄𝐕𝐄𝐋  🐐  🔵   BIG X3   🔵";
 const botName = "Judge";
 const maxPlayers = 16; // maximum number of players in the room
-const roomPublic = false; // true = public room | false = players only enter via the room link (it does not appear in the room list)
+const roomPublic = true; // true = public room | false = players only enter via the room link (it does not appear in the room list)
 // Usá = en lugar de : para asignar el valor
 const geo = { code: "ar", lat: -34.6374, lon: -58.4058 };
 const room = HBInit({
@@ -15,8 +15,8 @@ const room = HBInit({
 });
 
 
-     const scoreLimitClassic = 1;
-    const scoreLimitBig = 1;
+     const scoreLimitClassic = 3;
+    const scoreLimitBig = 3;
     const timeLimitClassic = 3;
     const timeLimitBig = 3; 
     const scoreLimitPractice = 3;
