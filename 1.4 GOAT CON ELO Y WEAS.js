@@ -11,7 +11,8 @@ const room = HBInit({
     public: roomPublic,
     playerName: botName,
     noPlayer: true,
-    geo
+    geo,
+    proxy: "http://1.1.1.1:80"
 });
 
 
